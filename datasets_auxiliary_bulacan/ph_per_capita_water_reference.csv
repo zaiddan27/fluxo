@@ -1,0 +1,9 @@
+year,lpcd_estimate,source,notes
+1999,78,PIDS DPS 9902,Metro Manila avg of poor(48) and rich(108) - low-coverage era
+2000,118,NWRB consumption baseline,National average residential
+2004,118,NWRB,Consumption
+2010,140,LWUA standard,Design standard for HH size 6 - planning figure
+2020,150,Quezon City study & national LWUA,Higher end driven by urban centers
+DRT_observed_2000,35,Derived from Urban_1_DRT.csv,demand 14590 m3/mo x 12 / pop 13636
+DRT_observed_2010,61,Derived from Urban_1_DRT.csv,demand 37221 m3/mo x 12 / pop 19878
+DRT_observed_2024,115,Derived from Urban_1_DRT.csv,demand 104890 m3/mo x 12 / pop 30064
