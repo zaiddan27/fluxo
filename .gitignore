@@ -1,0 +1,21 @@
+# Editor / tooling
+.claude/
+.qodo/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies / build output
+node_modules/
+dist/
+build/
+out/
+.next/
+.expo/
