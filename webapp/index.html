@@ -131,6 +131,7 @@
 
   /* Upload zone */
   .dropzone {
+    display: block;
     border: 2px dashed var(--clsu-green-light);
     border-radius: var(--radius);
     padding: 48px 24px;
@@ -139,6 +140,12 @@
     cursor: pointer;
     transition: all 0.2s ease;
   }
+  .dropzone .icon,
+  .dropzone .primary,
+  .dropzone .secondary { display: block; margin: 0 auto; }
+  .dropzone .icon { line-height: 1; margin-bottom: 12px; }
+  .dropzone .primary { margin-top: 4px; }
+  .dropzone .secondary { margin-top: 6px; }
   .dropzone:hover, .dropzone.dragover {
     border-color: var(--clsu-green);
     background: var(--clsu-green-pale);
