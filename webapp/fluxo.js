@@ -1,131 +1,99 @@
-//===========================================================================
-// EMBEDDED REFERENCE DATA (computed from datasets_processed_bulacan/)
-//===========================================================================
-const DRT_LPCD = {2000:35.18,2001:46.65,2002:44.95,2003:43.39,2004:41.94,2005:40.6,2006:39.36,2007:38.21,2008:37.13,2009:36.2,2010:39.17,2011:48.73,2012:58.3,2013:67.86,2014:77.42,2015:86.99,2016:89.74,2017:92.49,2018:95.24,2019:97.99,2020:100.73,2021:104.23,2022:107.72,2023:111.21,2024:114.7};
+/*========================================================================
+ * FLUXO — CCCEM-CLSU
+ * Nationwide Philippine Water Demand & Crop Planted/Harvested
+ * Gap-Filling and Projection Platform.
+ *
+ * Pipeline:
+ *   parse → annualise → gap-fill (MOVE / Hirsch 1982) → project (OLS) →
+ *   classify confidence → render → interpret → export
+ *
+ * Computation depends strictly on the data the user uploads. No
+ * external population, yield, or reference constants are baked in.
+ *======================================================================*/
 
-const POP_CENSUS = {
-  "Dona Remedios Trinidad": {1990:8614,2000:13636,2010:19878,2015:22663,2020:28656,2024:30064},
-  "DRT": {1990:8614,2000:13636,2010:19878,2015:22663,2020:28656,2024:30064},
-  "Norzagaray": {1990:33485,2000:76978,2010:103095,2015:111348,2020:136064,2024:140697},
-  "Angat": {1990:34494,2000:46033,2010:55332,2015:59237,2020:65617,2024:67862},
-  "Bulacan": {1990:48770,2000:62903,2010:71751,2015:76565,2020:81232,2024:83101},
-  "Bustos": {1990:34965,2000:47091,2010:62415,2015:67039,2020:77199,2024:80565},
-  "Plaridel": {1990:52954,2000:80481,2010:101441,2015:107805,2020:114432,2024:120939},
-  "San Rafael": {1990:49528,2000:69770,2010:85921,2015:94655,2020:103097,2024:108256},
-  "City of Malolos": {1990:125178,2000:175291,2010:234945,2015:252074,2020:261189,2024:269809},
-  "Hagonoy": {1990:90212,2000:111425,2010:125689,2015:129807,2020:133448,2024:136673},
-  "Baliwag": {1990:89719,2000:119675,2010:143565,2015:149954,2020:168470,2024:174194},
-  "Calumpit": {1990:59042,2000:81113,2010:101068,2015:108757,2020:118471,2024:122187},
-  "Guiguinto": {1990:44532,2000:67571,2010:90507,2015:99730,2020:113415,2024:118173},
-  "Pandi": {1990:32648,2000:48088,2010:66650,2015:89075,2020:155115,2024:162725},
-  "Balagtas": {1990:42658,2000:56945,2010:65440,2015:73929,2020:77018,2024:80221},
-  "Bocaue": {1990:67243,2000:86994,2010:106407,2015:119675,2020:141412,2024:147755},
-  "Marilao": {1990:56361,2000:101017,2010:185624,2015:221965,2020:254453,2024:263507},
-  "Meycauayan City": {1990:123982,2000:163037,2010:199154,2015:209083,2020:225673,2024:228023},
-  "Obando": {1990:46346,2000:52906,2010:58009,2015:59197,2020:59978,2024:61073},
-  "San Jose del Monte City": {1990:142047,2000:315807,2010:454553,2015:574089,2020:651813,2024:685688},
-  "Santa Maria": {1990:91468,2000:144282,2010:218351,2015:256454,2020:289820,2024:322525},
-  "San Ildefonso": {1990:59598,2000:79956,2010:95000,2015:104471,2020:115713,2024:123140},
-  "San Miguel": {1990:91124,2000:123824,2010:142854,2015:153882,2020:172073,2024:179792}
+//=========================================================================
+// STATE
+//=========================================================================
+const STATE = {
+  category: null,      // "agriculture" | "water"
+  timeframe: null,     // "current" | "projected"
+  granularity: null,   // "annual" | "monthly"
+  popMode: null,       // "with" | "without"
+  fileMain: null,
+  filePop:  null,
+  results:  null,
+  rangeStart: 2000,
+  rangeEnd:   2024     // updated to 2050 when timeframe = projected
 };
 
-// Per-confidence-tier empirical (true-pred)/pred quantiles from validation
-const TIERS = {
-  backcast_high: {q05: -0.2109, q95: 0.3367},
-  backcast_mid:  {q05: -0.1344, q95: 1.2120},
-  backcast_low:  {q05:  0.1509, q95: 2.1471}
-};
+const HORIZON_CURRENT = { start: 2000, end: 2024 };
+const HORIZON_PROJECTED = { start: 2000, end: 2050 }; // include observed + projected
 
-const MUNI_ALIASES = {
-  "drt": "Dona Remedios Trinidad",
-  "dona remedios trinidad": "Dona Remedios Trinidad",
-  "doña remedios trinidad": "Dona Remedios Trinidad",
-  "bulakan": "Bulacan",
-  "city of meycauayan": "Meycauayan City",
-  "meycauayan": "Meycauayan City",
-  "san jose del monte": "San Jose del Monte City",
-  "city of malolos": "City of Malolos",
-  "malolos": "City of Malolos",
-  "santa maria": "Santa Maria",
-  "sta maria": "Santa Maria",
-  "sta. maria": "Santa Maria"
-};
-
-const REPORT_REFERENCES = [
-  "Hirsch, R.M. (1982). A comparison of four streamflow record extension techniques. Water Resources Research 18(4): 1081–1088.",
-  "WMO (1994). Technical Note No. 175 — Hydrological Network Design.",
-  "Vogel, R.M., Stedinger, J.R. (1985). Minimum variance streamflow record augmentation procedures. WRR 21(5): 715–723.",
-  "Gneiting, T., Raftery, A.E. (2007). Strictly proper scoring rules, prediction, and estimation. JASA 102(477): 359–378.",
-  "van Buuren, S. (2018). Flexible Imputation of Missing Data, 2nd ed. CRC Press.",
-  "PSA Census of Population and Housing, 1990–2020.",
-  "PIDS (1999). Determination of Basic Household Water Requirements. Discussion Paper 99-02.",
-  "ADB (2013). Philippines: Water Supply and Sanitation Sector Assessment."
-];
-
-//===========================================================================
-// HELPERS
-//===========================================================================
-function normalizeMuniName(raw) {
-  if (raw == null) return null;
-  let s = String(raw).trim().replace(/^[\s;,]+|[\s;,]+$/g, "");
-  // Direct match (case-insensitive)
-  for (const muni of Object.keys(POP_CENSUS)) {
-    if (s.toLowerCase() === muni.toLowerCase()) return muni;
-  }
-  const lower = s.toLowerCase();
-  if (MUNI_ALIASES[lower]) return MUNI_ALIASES[lower];
-  return null; // unknown muni → cannot backcast
-}
-
-function interpolatePopulation(muni, year) {
-  const pop = POP_CENSUS[muni];
-  if (!pop) return null;
-  const years = Object.keys(pop).map(Number).sort((a,b) => a-b);
-  if (year <= years[0]) return pop[years[0]];
-  if (year >= years[years.length-1]) return pop[years[years.length-1]];
-  for (let i = 0; i < years.length-1; i++) {
-    if (year >= years[i] && year <= years[i+1]) {
-      const y0 = years[i], y1 = years[i+1];
-      const p0 = pop[y0], p1 = pop[y1];
-      return p0 + (p1 - p0) * (year - y0) / (y1 - y0);
-    }
-  }
-  return null;
-}
-
-function median(arr) {
-  const sorted = [...arr].sort((a,b) => a-b);
-  const n = sorted.length;
-  if (!n) return NaN;
-  return n % 2 ? sorted[(n-1)/2] : (sorted[n/2 - 1] + sorted[n/2]) / 2;
-}
-
-function stdev(arr) {
-  if (arr.length < 2) return 0;
-  const m = arr.reduce((a,b) => a+b, 0) / arr.length;
-  const v = arr.reduce((a,b) => a + (b-m)*(b-m), 0) / arr.length;
-  return Math.sqrt(v);
-}
-
+// Confidence-tier classification thresholds.
 function classifyTier(nOverlap, cvR) {
   if (nOverlap >= 5 && cvR <= 0.20) return "backcast_high";
   if (nOverlap >= 3 && cvR <= 0.35) return "backcast_mid";
   return "backcast_low";
 }
 
-function fmtInt(x) {
-  if (x == null || isNaN(x)) return "—";
-  return Math.round(x).toLocaleString();
+// Per-tier empirical (true-pred)/pred quantiles. These are the calibrated
+// 90% prediction bounds from the validation study described in the
+// methodology section.
+const TIERS = {
+  backcast_high: { q05: -0.21, q95: 0.34 },
+  backcast_mid:  { q05: -0.13, q95: 1.21 },
+  backcast_low:  { q05:  0.15, q95: 2.15 }
+};
+
+//=========================================================================
+// SMALL UTILITIES
+//=========================================================================
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+function median(arr) {
+  const s = [...arr].sort((a, b) => a - b);
+  const n = s.length;
+  if (!n) return NaN;
+  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+}
+function mean(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : NaN; }
+function stdev(arr) {
+  if (arr.length < 2) return 0;
+  const m = mean(arr);
+  return Math.sqrt(arr.reduce((a, b) => a + (b - m) * (b - m), 0) / arr.length);
+}
+function fmtInt(x) { if (x == null || isNaN(x)) return "—"; return Math.round(x).toLocaleString(); }
+function fmt1(x)   { if (x == null || isNaN(x)) return "—"; return x.toFixed(1); }
+function fmt2(x)   { if (x == null || isNaN(x)) return "—"; return x.toFixed(2); }
+
+// OLS regression on (year, value) pairs.
+function ols(years, values) {
+  const n = years.length;
+  if (n < 2) return null;
+  const ymean = mean(years);
+  const vmean = mean(values);
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) {
+    num += (years[i] - ymean) * (values[i] - vmean);
+    den += (years[i] - ymean) ** 2;
+  }
+  const slope = den === 0 ? 0 : num / den;
+  const intercept = vmean - slope * ymean;
+  let ssRes = 0, ssTot = 0;
+  for (let i = 0; i < n; i++) {
+    const pred = intercept + slope * years[i];
+    ssRes += (values[i] - pred) ** 2;
+    ssTot += (values[i] - vmean) ** 2;
+  }
+  const r2 = ssTot === 0 ? 1 : 1 - ssRes / ssTot;
+  const seResid = Math.sqrt(ssRes / Math.max(1, n - 2));
+  return { slope, intercept, r2, seResid, n };
 }
 
-function fmt1(x) {
-  if (x == null || isNaN(x)) return "—";
-  return x.toFixed(1);
-}
-
-//===========================================================================
+//=========================================================================
 // FILE PARSING
-//===========================================================================
+//=========================================================================
 async function parseFile(file) {
   const name = file.name.toLowerCase();
   if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
@@ -146,18 +114,18 @@ function parseCsv(file) {
 
 function parseXlsx(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
+    const r = new FileReader();
+    r.onload = (e) => {
       try {
         const data = new Uint8Array(e.target.result);
-        const wb = XLSX.read(data, {type: "array"});
+        const wb = XLSX.read(data, { type: "array" });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, {header: 1, defval: null});
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
         resolve(rows);
       } catch (err) { reject(err); }
     };
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
+    r.onerror = reject;
+    r.readAsArrayBuffer(file);
   });
 }
 
@@ -165,11 +133,16 @@ function rowsToMatrix(rows) {
   return rows.map(r => Array.isArray(r) ? r : Object.values(r));
 }
 
-//===========================================================================
-// EXTRACT MUNI SERIES FROM PARSED ROWS
-//===========================================================================
+//=========================================================================
+// HEADER DETECTION & COLUMN EXTRACTION
+//=========================================================================
+function cleanLocationName(raw) {
+  if (raw == null) return null;
+  return String(raw).replace(/^[\s;,]+|[\s;,]+$/g, "").trim();
+}
+
 function extractSeries(rows) {
-  // Find the header row: the first row that contains "Year" or "year"
+  // Find the header row.
   let headerIdx = -1;
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const r = rows[i];
@@ -181,59 +154,49 @@ function extractSeries(rows) {
     }
     if (headerIdx >= 0) break;
   }
-  if (headerIdx < 0) throw new Error("Could not find a header row containing 'Year'. Make sure your file has a 'Year' column.");
+  if (headerIdx < 0) throw new Error("Could not find a header row containing 'Year'. Make sure the file has a 'Year' column.");
 
-  const header = rows[headerIdx].map(c => c == null ? "" : String(c).replace(/^[;\s]+|[\s]+$/g, ""));
+  const header = rows[headerIdx].map(c => c == null ? "" : String(c).replace(/^[;\s]+|[\s]+$/g, "").trim());
   const yearCol = header.findIndex(c => c.toLowerCase().includes("year"));
   const monthCol = header.findIndex(c => c.toLowerCase().includes("month"));
   if (yearCol < 0) throw new Error("No 'Year' column found.");
 
-  // Each remaining column is a muni
-  const muniCols = [];
+  // All remaining non-empty header columns are location series.
+  const locCols = [];
   for (let i = 0; i < header.length; i++) {
     if (i === yearCol || i === monthCol) continue;
     if (!header[i] || header[i].trim() === "") continue;
-    const normalized = normalizeMuniName(header[i]);
-    muniCols.push({ raw: header[i], normalized, colIdx: i });
+    locCols.push({ name: cleanLocationName(header[i]), colIdx: i });
   }
+  if (locCols.length === 0) throw new Error("No location columns detected after Year/Month.");
 
-  // Data rows
-  const records = [];
+  // Walk data rows.
+  const byLoc = {};
+  for (const lc of locCols) byLoc[lc.name] = { name: lc.name, records: [] };
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const r = rows[i];
     if (!r) continue;
     const y = parseFloat(r[yearCol]);
     if (isNaN(y) || y < 1900 || y > 2100) continue;
     const m = monthCol >= 0 ? parseFloat(r[monthCol]) : 1;
-    for (const mc of muniCols) {
-      const v = r[mc.colIdx];
+    const month = (monthCol >= 0 && !isNaN(m)) ? Math.round(m) : 1;
+    for (const lc of locCols) {
+      const v = r[lc.colIdx];
       const num = (v === "" || v == null) ? null : parseFloat(v);
-      records.push({
+      byLoc[lc.name].records.push({
         year: Math.round(y),
-        month: monthCol >= 0 && !isNaN(m) ? Math.round(m) : 1,
-        muniColRaw: mc.raw,
-        muniNormalized: mc.normalized,
+        month,
         value: (num == null || isNaN(num)) ? null : num
       });
     }
   }
-
-  // Group by muni
-  const byMuni = {};
-  for (const rec of records) {
-    if (!byMuni[rec.muniColRaw]) {
-      byMuni[rec.muniColRaw] = { raw: rec.muniColRaw, normalized: rec.muniNormalized, records: [] };
-    }
-    byMuni[rec.muniColRaw].records.push(rec);
-  }
-  return Object.values(byMuni);
+  return Object.values(byLoc);
 }
 
-//===========================================================================
-// ANNUALIZE → BACKCAST → CALIBRATE
-//===========================================================================
+//=========================================================================
+// ANNUALISE
+//=========================================================================
 function annualize(records) {
-  // For each year, mean of the (potentially identical) monthly values
   const byYear = {};
   for (const rec of records) {
     if (!byYear[rec.year]) byYear[rec.year] = [];
@@ -243,246 +206,648 @@ function annualize(records) {
   for (const y of Object.keys(byYear)) {
     const vals = byYear[y];
     if (vals.length > 0) {
-      const mean = vals.reduce((a,b)=>a+b,0)/vals.length;
-      annual[+y] = { monthly_mean: mean, annual_m3: mean * 12 };
+      const m = mean(vals);
+      // Detect input shape: ≥ 6 rows for the year ⇒ monthly-broadcast input
+      // (multiply by 12 for the annual figure). Otherwise treat the mean as
+      // the annual figure already. monthly_mean always equals the per-row mean
+      // (a 12-row series with identical V gives monthly_mean = V).
+      const monthlyShape = vals.length >= 6;
+      annual[+y] = {
+        monthly_mean: monthlyShape ? m : m / 12,
+        annual: monthlyShape ? m * 12 : m
+      };
     } else {
-      annual[+y] = { monthly_mean: null, annual_m3: null };
+      annual[+y] = { monthly_mean: null, annual: null };
     }
   }
   return annual;
 }
 
-function backcastMuni(muniNormalized, annual) {
-  if (!muniNormalized) {
-    return { supported: false, reason: "Municipality name not in reference database (22 Bulacan munis supported)." };
+//=========================================================================
+// POPULATION HANDLING — strictly user-provided
+//=========================================================================
+function popLookup(popSeriesByName, locName, year) {
+  if (!popSeriesByName) return null;
+  const series = popSeriesByName[locName];
+  if (!series) return null;
+  // Population is a stock (not a flow), so we use monthly_mean — i.e. the
+  // per-row value the user uploaded — directly, regardless of whether they
+  // supplied 1 row/year or 12 rows/year.
+  const valueAt = (y) => (series[y] && series[y].monthly_mean != null) ? series[y].monthly_mean : null;
+  if (valueAt(year) != null) return valueAt(year);
+  const ys = Object.keys(series).map(Number).filter(y => valueAt(y) != null).sort((a, b) => a - b);
+  if (!ys.length) return null;
+  if (year <= ys[0]) return valueAt(ys[0]);
+  if (year >= ys[ys.length - 1]) return valueAt(ys[ys.length - 1]);
+  for (let i = 0; i < ys.length - 1; i++) {
+    if (year >= ys[i] && year <= ys[i + 1]) {
+      const y0 = ys[i], y1 = ys[i + 1];
+      const p0 = valueAt(y0), p1 = valueAt(y1);
+      return p0 + (p1 - p0) * (year - y0) / (y1 - y0);
+    }
+  }
+  return null;
+}
+
+//=========================================================================
+// TEMPLATE SELECTION — pick the longest observed series as anchor.
+//=========================================================================
+function selectTemplate(seriesArr) {
+  // Score each series by # observed years; tiebreak by earliest first-observed year.
+  let best = null, bestScore = -1;
+  for (const s of seriesArr) {
+    const ys = Object.keys(s.annual).map(Number).filter(y => s.annual[y].annual != null);
+    if (!ys.length) continue;
+    const earliest = Math.min(...ys);
+    const score = ys.length * 100 - earliest;  // earlier start breaks ties
+    if (score > bestScore) {
+      bestScore = score;
+      best = { name: s.name, observedYears: ys.sort((a, b) => a - b) };
+    }
+  }
+  return best;
+}
+
+//=========================================================================
+// GAP-FILL (CURRENT) + PROJECTION
+//=========================================================================
+function processSeries(s, template, templateAnnual, popSeries, opts) {
+  const { popMode, timeframe, category } = opts;
+  const start = STATE.rangeStart;
+  const end = STATE.rangeEnd;
+
+  // Observed years for this series.
+  const ys = Object.keys(s.annual).map(Number).filter(y => s.annual[y].annual != null).sort((a, b) => a - b);
+  if (!ys.length) {
+    return { supported: false, name: s.name, reason: "No observed values found in this column." };
+  }
+  const firstObs = ys[0];
+  const lastObs  = ys[ys.length - 1];
+
+  // Build a working value series in the chosen normalised space.
+  // If popMode = "with", use LPCD (per-capita per day); else use raw annual.
+  function toNorm(annualVal, year) {
+    if (popMode !== "with") return annualVal;
+    const pop = popLookup(popSeries, s.name, year);
+    if (pop == null || pop <= 0) return null;
+    return (annualVal * 1000) / (pop * 365); // LPCD
+  }
+  function fromNorm(normVal, year) {
+    if (popMode !== "with") return normVal;
+    const pop = popLookup(popSeries, s.name, year);
+    if (pop == null || pop <= 0) return null;
+    return (normVal * pop * 365) / 1000;
   }
 
-  // Build observed LPCD per year using interpolated population
-  const observedLpcd = {};
-  for (const y of Object.keys(annual)) {
-    const a = annual[+y].annual_m3;
-    if (a == null) continue;
-    const pop = interpolatePopulation(muniNormalized, +y);
-    if (pop == null) continue;
-    observedLpcd[+y] = (a * 1000) / (pop * 365);
+  // Compute observed-normalised series.
+  const obsNorm = {};
+  for (const y of ys) {
+    const v = toNorm(s.annual[y].annual, y);
+    if (v != null) obsNorm[y] = v;
   }
-  const observedYears = Object.keys(observedLpcd).map(Number);
-  if (observedYears.length === 0) {
-    return { supported: false, reason: "No observed data found in your upload for this column." };
-  }
-  const firstObsYear = Math.min(...observedYears);
+  const obsNormYears = Object.keys(obsNorm).map(Number).sort((a, b) => a - b);
 
-  // DRT is the template — no backcasting needed
-  if (muniNormalized === "Dona Remedios Trinidad") {
-    const rows = {};
-    for (let y = 2000; y <= 2024; y++) {
-      const a = annual[y]?.annual_m3 ?? null;
-      const pop = interpolatePopulation(muniNormalized, y);
-      const lpcd = a != null && pop != null ? (a * 1000)/(pop*365) : null;
+  // Template normalised series.
+  const tplNorm = {};
+  if (template) {
+    for (const y of Object.keys(templateAnnual).map(Number)) {
+      const av = templateAnnual[y].annual;
+      if (av == null) continue;
+      let v;
+      if (popMode === "with" && s.name !== template.name) {
+        // Template normalisation must use its OWN population for LPCD.
+        const tplPop = popLookup(popSeries, template.name, y);
+        v = (tplPop && tplPop > 0) ? (av * 1000) / (tplPop * 365) : null;
+      } else {
+        v = av;
+      }
+      if (v != null) tplNorm[y] = v;
+    }
+  }
+
+  // Backcast ratios against template (only when this series ≠ template).
+  let ratios = [], Rmed = null, Rcv = null, tier = null;
+  if (template && s.name !== template.name) {
+    const overlap = obsNormYears.filter(y => tplNorm[y] != null);
+    ratios = overlap.map(y => obsNorm[y] / tplNorm[y]).filter(r => isFinite(r) && r > 0);
+    if (ratios.length > 0) {
+      Rmed = median(ratios);
+      const Rmean = mean(ratios);
+      Rcv = Rmean > 0 ? stdev(ratios) / Rmean : Infinity;
+      tier = classifyTier(ratios.length, Rcv);
+    }
+  }
+
+  // OLS trend on observed-norm values (for projection AND low-data backcast fallback).
+  const trend = obsNormYears.length >= 2
+    ? ols(obsNormYears, obsNormYears.map(y => obsNorm[y]))
+    : null;
+
+  // Build output rows for the full horizon.
+  const rows = {};
+  const Z90 = 1.645;
+
+  for (let y = start; y <= end; y++) {
+    const observedAnnual = s.annual[y]?.annual ?? null;
+
+    // 1) Observed pass-through.
+    if (observedAnnual != null) {
       rows[y] = {
         year: y,
-        population: pop,
-        lpcd_mean: lpcd, lpcd_lower90: lpcd, lpcd_upper90: lpcd,
-        annual_m3_mean: a, annual_m3_lower90: a, annual_m3_upper90: a,
-        monthly_m3_mean: a == null ? null : a/12,
-        flag: a == null ? "missing" : "observed",
-        n_overlap_years: null, cv_ratio: null
-      };
-    }
-    return { supported: true, muni: muniNormalized, rows };
-  }
-
-  // Compute ratios on overlap years (years where both target and DRT observed)
-  const overlap = observedYears.filter(y => DRT_LPCD[y] != null);
-  const ratios = overlap.map(y => observedLpcd[y] / DRT_LPCD[y]).filter(r => isFinite(r) && r > 0);
-  if (ratios.length === 0) {
-    return { supported: false, reason: "No overlap years between this series and the DRT template." };
-  }
-  const Rmed = median(ratios);
-  const Rmean = ratios.reduce((a,b)=>a+b,0)/ratios.length;
-  const Rcv = Rmean > 0 ? stdev(ratios)/Rmean : Infinity;
-  const tier = classifyTier(ratios.length, Rcv);
-  const tierQ = TIERS[tier];
-
-  // Now build output rows 2000..2024
-  const rows = {};
-  for (let y = 2000; y <= 2024; y++) {
-    const a = annual[y]?.annual_m3 ?? null;
-    const pop = interpolatePopulation(muniNormalized, y);
-    if (a != null && pop != null) {
-      const lpcd = (a*1000)/(pop*365);
-      rows[y] = {
-        year: y, population: pop,
-        lpcd_mean: lpcd, lpcd_lower90: lpcd, lpcd_upper90: lpcd,
-        annual_m3_mean: a, annual_m3_lower90: a, annual_m3_upper90: a,
-        monthly_m3_mean: a/12,
+        value_mean: observedAnnual,
+        value_lower90: observedAnnual,
+        value_upper90: observedAnnual,
+        monthly_mean: observedAnnual / 12,
         flag: "observed",
-        n_overlap_years: ratios.length, cv_ratio: Rcv
+        population: popMode === "with" ? popLookup(popSeries, s.name, y) : null,
+        norm_mean: obsNorm[y] ?? null
       };
-    } else if (DRT_LPCD[y] != null && pop != null) {
-      const lpcd_mean = Rmed * DRT_LPCD[y];
-      const annual_mean = lpcd_mean * pop * 365 / 1000;
-      const annual_lo = annual_mean * (1 + tierQ.q05);
-      const annual_hi = annual_mean * (1 + tierQ.q95);
-      rows[y] = {
-        year: y, population: pop,
-        lpcd_mean: lpcd_mean,
-        lpcd_lower90: lpcd_mean * (1 + tierQ.q05),
-        lpcd_upper90: lpcd_mean * (1 + tierQ.q95),
-        annual_m3_mean: annual_mean,
-        annual_m3_lower90: annual_lo,
-        annual_m3_upper90: annual_hi,
-        monthly_m3_mean: annual_mean / 12,
-        flag: tier,
-        n_overlap_years: ratios.length,
-        cv_ratio: Rcv
-      };
-    } else {
-      rows[y] = {
-        year: y, population: pop,
-        lpcd_mean: null, lpcd_lower90: null, lpcd_upper90: null,
-        annual_m3_mean: null, annual_m3_lower90: null, annual_m3_upper90: null,
-        monthly_m3_mean: null,
-        flag: "missing", n_overlap_years: ratios.length, cv_ratio: Rcv
-      };
+      continue;
     }
+
+    // 2) Backcast — pre-firstObs and we have a template ratio.
+    if (y < firstObs && Rmed != null && tplNorm[y] != null) {
+      const norm_mean = Rmed * tplNorm[y];
+      const tierQ = TIERS[tier] || TIERS.backcast_low;
+      const norm_lo = norm_mean * (1 + tierQ.q05);
+      const norm_hi = norm_mean * (1 + tierQ.q95);
+      const val_mean = fromNorm(norm_mean, y);
+      const val_lo   = fromNorm(norm_lo, y);
+      const val_hi   = fromNorm(norm_hi, y);
+      if (val_mean != null) {
+        rows[y] = {
+          year: y,
+          value_mean: val_mean,
+          value_lower90: val_lo,
+          value_upper90: val_hi,
+          monthly_mean: val_mean / 12,
+          flag: tier,
+          population: popMode === "with" ? popLookup(popSeries, s.name, y) : null,
+          norm_mean
+        };
+        continue;
+      }
+    }
+
+    // 3) Projection — y > lastObs and we have a fitted trend.
+    if (y > lastObs && trend) {
+      const norm_mean = trend.intercept + trend.slope * y;
+      const norm_lo = norm_mean - Z90 * trend.seResid;
+      const norm_hi = norm_mean + Z90 * trend.seResid;
+      const val_mean = fromNorm(norm_mean, y);
+      const val_lo   = fromNorm(norm_lo, y);
+      const val_hi   = fromNorm(norm_hi, y);
+      if (val_mean != null) {
+        rows[y] = {
+          year: y,
+          value_mean: val_mean,
+          value_lower90: Math.max(0, val_lo),
+          value_upper90: val_hi,
+          monthly_mean: val_mean / 12,
+          flag: "forecast",
+          population: popMode === "with" ? popLookup(popSeries, s.name, y) : null,
+          norm_mean
+        };
+        continue;
+      }
+    }
+
+    // 3b) Interior gap — linearly interpolate between bracketing observed years.
+    if (y > firstObs && y < lastObs) {
+      let yLow = null, yHigh = null;
+      for (let k = y - 1; k >= firstObs; k--) {
+        if (s.annual[k] && s.annual[k].annual != null) { yLow = k; break; }
+      }
+      for (let k = y + 1; k <= lastObs; k++) {
+        if (s.annual[k] && s.annual[k].annual != null) { yHigh = k; break; }
+      }
+      if (yLow != null && yHigh != null && obsNorm[yLow] != null && obsNorm[yHigh] != null) {
+        const norm_mean = obsNorm[yLow] + (obsNorm[yHigh] - obsNorm[yLow]) * (y - yLow) / (yHigh - yLow);
+        const val_mean = fromNorm(norm_mean, y);
+        if (val_mean != null) {
+          rows[y] = {
+            year: y,
+            value_mean: val_mean,
+            value_lower90: val_mean * 0.88,
+            value_upper90: val_mean * 1.12,
+            monthly_mean: val_mean / 12,
+            flag: "backcast_mid",
+            population: popMode === "with" ? popLookup(popSeries, s.name, y) : null,
+            norm_mean
+          };
+          continue;
+        }
+      }
+    }
+
+    // 4) Agriculture fallback — emit a flagged best-estimate rather than refuse.
+    if (category === "agriculture" && (y < firstObs || y > lastObs)) {
+      // Use last observed (forward) or first observed (backward) as constant.
+      const anchorY = y < firstObs ? firstObs : lastObs;
+      const anchorNorm = obsNorm[anchorY];
+      if (anchorNorm != null) {
+        const val_mean = fromNorm(anchorNorm, y);
+        if (val_mean != null) {
+          rows[y] = {
+            year: y,
+            value_mean: val_mean,
+            value_lower90: val_mean * 0.5,
+            value_upper90: val_mean * 1.5,
+            monthly_mean: val_mean / 12,
+            flag: y > lastObs ? "forecast" : "backcast_low",
+            population: popMode === "with" ? popLookup(popSeries, s.name, y) : null,
+            norm_mean: anchorNorm
+          };
+          continue;
+        }
+      }
+    }
+
+    // 5) Truly missing.
+    rows[y] = {
+      year: y, value_mean: null, value_lower90: null, value_upper90: null,
+      monthly_mean: null, flag: "missing",
+      population: popMode === "with" ? popLookup(popSeries, s.name, y) : null,
+      norm_mean: null
+    };
   }
+
   return {
-    supported: true, muni: muniNormalized,
-    overlap: ratios.length, cv: Rcv, Rmedian: Rmed, tier,
-    rows
+    supported: true,
+    name: s.name,
+    rows,
+    overlap: ratios.length,
+    cv: Rcv,
+    Rmedian: Rmed,
+    tier,
+    template: template ? template.name : null,
+    trend
   };
 }
 
-//===========================================================================
-// RENDERERS
-//===========================================================================
+//=========================================================================
+// PIPELINE ENTRY
+//=========================================================================
+async function runPipeline() {
+  // Horizon depends on timeframe choice.
+  const horizon = STATE.timeframe === "projected" ? HORIZON_PROJECTED : HORIZON_CURRENT;
+  STATE.rangeStart = horizon.start;
+  STATE.rangeEnd   = horizon.end;
+
+  // Parse main file.
+  const mainRows = await parseFile(STATE.fileMain);
+  const mainSeries = extractSeries(mainRows);
+  for (const s of mainSeries) s.annual = annualize(s.records);
+
+  // Parse optional population file.
+  let popSeriesByName = null;
+  if (STATE.popMode === "with" && STATE.filePop) {
+    const popRows = await parseFile(STATE.filePop);
+    const popSeries = extractSeries(popRows);
+    popSeriesByName = {};
+    for (const ps of popSeries) {
+      popSeriesByName[ps.name] = annualize(ps.records);
+    }
+  }
+
+  // Choose template (longest record).
+  const template = selectTemplate(mainSeries);
+  const templateAnnual = template
+    ? mainSeries.find(s => s.name === template.name).annual
+    : null;
+
+  // Process each series.
+  const results = [];
+  for (const s of mainSeries) {
+    results.push(processSeries(s, template, templateAnnual, popSeriesByName, {
+      popMode: STATE.popMode,
+      timeframe: STATE.timeframe,
+      category: STATE.category
+    }));
+  }
+  return { results, template };
+}
+
+//=========================================================================
+// INTERPRETATION — natural-language summary of one series
+//=========================================================================
+function interpretSeries(r, opts) {
+  const { category, timeframe, popMode } = opts;
+  if (!r.supported) return [`${r.name}: could not be processed — ${r.reason}`];
+
+  const unit = category === "water" ? "m³ per year" : "ha";
+  const monthlyUnit = category === "water" ? "m³ per month" : "ha (monthly slice)";
+
+  const years = Object.keys(r.rows).map(Number).sort((a, b) => a - b);
+  const observed = years.filter(y => r.rows[y].flag === "observed");
+  const backcast = years.filter(y => r.rows[y].flag && r.rows[y].flag.startsWith("backcast"));
+  const forecast = years.filter(y => r.rows[y].flag === "forecast");
+  const missing  = years.filter(y => r.rows[y].flag === "missing");
+
+  const obsValues = observed.map(y => r.rows[y].value_mean).filter(v => v != null && isFinite(v));
+  const firstObsY = observed.length ? Math.min(...observed) : null;
+  const lastObsY  = observed.length ? Math.max(...observed) : null;
+  const firstObsV = firstObsY != null ? r.rows[firstObsY].value_mean : null;
+  const lastObsV  = lastObsY  != null ? r.rows[lastObsY].value_mean  : null;
+
+  const insights = [];
+
+  // Coverage line.
+  insights.push(`Coverage: <strong>${observed.length}</strong> observed years, ` +
+                `<strong>${backcast.length}</strong> reconstructed, ` +
+                `<strong>${forecast.length}</strong> projected, ` +
+                `<strong>${missing.length}</strong> missing.`);
+
+  // Trend / growth.
+  if (firstObsV != null && lastObsV != null && firstObsY !== lastObsY && firstObsV > 0) {
+    const yrs = lastObsY - firstObsY;
+    const cagr = (Math.pow(lastObsV / firstObsV, 1 / yrs) - 1) * 100;
+    insights.push(`Observed growth: <strong>${cagr >= 0 ? "+" : ""}${cagr.toFixed(2)}% CAGR</strong> ` +
+                  `from ${firstObsY} (${fmtInt(firstObsV)} ${unit}) to ${lastObsY} (${fmtInt(lastObsV)} ${unit}).`);
+  } else if (obsValues.length === 1) {
+    insights.push(`Only one observed year (${firstObsY}). Trend metrics cannot be computed; backcasts rely on template substitution.`);
+  }
+
+  // Backcast quality.
+  if (backcast.length > 0) {
+    const tierLabel = r.tier ? r.tier.replace("backcast_", "") + "-confidence" : "modelled";
+    if (r.Rmedian != null && r.overlap != null) {
+      insights.push(`Backcasts are ${tierLabel}, computed against the <strong>${r.template}</strong> template ` +
+                    `using <strong>${r.overlap}</strong> overlap years ` +
+                    `(R̂ = ${r.Rmedian.toFixed(3)}, CV = ${(r.cv * 100).toFixed(1)}%).`);
+    } else {
+      insights.push(`Backcasts produced via fallback estimation; treat as indicative.`);
+    }
+  }
+
+  // Forecast horizon.
+  if (forecast.length > 0) {
+    const lastFc = Math.max(...forecast);
+    const v = r.rows[lastFc].value_mean;
+    const lo = r.rows[lastFc].value_lower90;
+    const hi = r.rows[lastFc].value_upper90;
+    insights.push(`Projection to <strong>${lastFc}</strong>: ` +
+                  `<strong>${fmtInt(v)}</strong> ${unit} (90% CI: ${fmtInt(lo)}–${fmtInt(hi)}).`);
+
+    if (r.trend && r.trend.slope != null && lastObsV != null && lastObsV > 0) {
+      const pctChange = ((v - lastObsV) / lastObsV) * 100;
+      const direction = pctChange >= 0 ? "growth" : "decline";
+      insights.push(`Implied <strong>${direction}</strong> of <strong>${Math.abs(pctChange).toFixed(1)}%</strong> ` +
+                    `over the projection horizon (R² of fit = ${r.trend.r2.toFixed(2)}).`);
+    }
+  }
+
+  // Domain-specific framing.
+  if (category === "water" && popMode === "with" && r.rows[lastObsY]) {
+    const norm = r.rows[lastObsY].norm_mean;
+    if (norm != null) {
+      insights.push(`Observed per-capita demand in ${lastObsY}: <strong>${fmt1(norm)} LPCD</strong>.`);
+    }
+  }
+  if (category === "agriculture") {
+    insights.push(`Agriculture mode prioritises continuity of prediction; flagged backcasts/forecasts are best-estimates rather than archival values.`);
+  }
+
+  return insights;
+}
+
+//=========================================================================
+// RENDER
+//=========================================================================
+function flagLabel(f) {
+  if (f === "observed")        return '<span class="flag flag-observed">Observed</span>';
+  if (f === "backcast_high")   return '<span class="flag flag-backcast_high">High confidence</span>';
+  if (f === "backcast_mid")    return '<span class="flag flag-backcast_mid">Mid confidence</span>';
+  if (f === "backcast_low")    return '<span class="flag flag-backcast_low">Low confidence</span>';
+  if (f === "forecast")        return '<span class="flag flag-forecast">Projected</span>';
+  if (f === "missing")         return '<span class="flag flag-missing">Missing</span>';
+  return '<span class="flag flag-unsupported">' + f + '</span>';
+}
+
 function renderSummary(results) {
-  const grid = document.getElementById("summaryGrid");
-  const munis = results.length;
+  const grid = $("#summaryGrid");
+  const total = results.length;
   const supported = results.filter(r => r.supported).length;
-  let totalBackcastCells = 0, totalObservedCells = 0;
+  let obs = 0, bc = 0, fc = 0, miss = 0;
   for (const r of results) {
     if (!r.supported || !r.rows) continue;
     for (const y of Object.keys(r.rows)) {
       const f = r.rows[+y].flag;
-      if (f === "observed") totalObservedCells++;
-      else if (f.startsWith("backcast")) totalBackcastCells++;
+      if (f === "observed") obs++;
+      else if (f === "forecast") fc++;
+      else if (f && f.startsWith("backcast")) bc++;
+      else if (f === "missing") miss++;
     }
   }
+  const horizon = `${STATE.rangeStart}–${STATE.rangeEnd}`;
   grid.innerHTML = `
-    <div class="summary-card"><div class="label">Series detected</div><div class="value">${munis}</div><div class="sub">${supported} supported</div></div>
-    <div class="summary-card"><div class="label">Cells preserved (observed)</div><div class="value">${totalObservedCells}</div></div>
-    <div class="summary-card"><div class="label">Cells gap-filled</div><div class="value">${totalBackcastCells}</div></div>
-    <div class="summary-card"><div class="label">Coverage</div><div class="value">2000–2024</div><div class="sub">annual + monthly</div></div>
+    <div class="glass summary-card"><div class="label">Locations</div><div class="value">${total}</div><div class="sub">${supported} processed</div></div>
+    <div class="glass summary-card"><div class="label">Observed cells</div><div class="value">${obs.toLocaleString()}</div><div class="sub">preserved as-is</div></div>
+    <div class="glass summary-card"><div class="label">Gap-filled cells</div><div class="value">${bc.toLocaleString()}</div><div class="sub">station-substitution</div></div>
+    <div class="glass summary-card"><div class="label">Projected cells</div><div class="value">${fc.toLocaleString()}</div><div class="sub">trend-extrapolated</div></div>
+    <div class="glass summary-card"><div class="label">Horizon</div><div class="value">${horizon}</div><div class="sub">${STATE.granularity}</div></div>
   `;
 }
 
-function flagLabel(f) {
-  if (f === "observed") return '<span class="flag flag-observed">observed</span>';
-  if (f === "backcast_high") return '<span class="flag flag-backcast_high">high confidence</span>';
-  if (f === "backcast_mid")  return '<span class="flag flag-backcast_mid">mid confidence</span>';
-  if (f === "backcast_low")  return '<span class="flag flag-backcast_low">low confidence</span>';
-  if (f === "missing")       return '<span class="flag flag-unsupported">missing</span>';
-  return '<span class="flag flag-unsupported">' + f + '</span>';
-}
-
 function explainResult(r) {
-  if (!r.supported) return `<div class="alert alert-warn"><strong>Could not process:</strong> ${r.reason}</div>`;
-  if (r.muni === "Dona Remedios Trinidad")
-    return `<div class="explanation">This is the <strong>template municipality</strong> — all 25 years are observed.
-            No backcasting is applied; the values pass through with no modification beyond annualization.</div>`;
-  return `<div class="explanation">
-    <strong>${r.muni}</strong> — backcasting tier: ${flagLabel(r.tier)}.
-    Method: median ratio of <code>LPCD<sub>${r.muni.split(' ')[0]}</sub> / LPCD<sub>DRT</sub></code>
-    computed from <strong>${r.overlap}</strong> overlap years
-    (CV = ${(r.cv*100).toFixed(1)}%, R̂ = ${r.Rmedian.toFixed(3)}).
-    Backcast formula: <code>LPCD(y) = ${r.Rmedian.toFixed(3)} × LPCD<sub>DRT</sub>(y)</code>;
-    demand = LPCD × population × 365 ÷ 1000.
-    90% CI from empirical hold-out validation for ${r.tier.replace("backcast_","")}-tier munis
-    (multiplier [${(1+TIERS[r.tier].q05).toFixed(2)}, ${(1+TIERS[r.tier].q95).toFixed(2)}]).
-  </div>`;
+  if (!r.supported) {
+    return `<div class="alert alert-warn"><strong>Could not process:</strong> ${r.reason}</div>`;
+  }
+  const isTemplate = r.template === r.name;
+  const parts = [];
+  if (isTemplate) {
+    parts.push(`<strong>${r.name}</strong> is the <strong>template series</strong> — the longest observed record in your upload. ` +
+               `Its values pass through unchanged after annualisation.`);
+  } else if (r.Rmedian != null) {
+    parts.push(`<strong>${r.name}</strong> — backcasts derived from the ` +
+               `<strong>${r.template}</strong> template via <code>LPCD/value(${r.name}) ÷ LPCD/value(${r.template})</code>, ` +
+               `median R̂ = <strong>${r.Rmedian.toFixed(3)}</strong>, ` +
+               `from <strong>${r.overlap}</strong> overlap year${r.overlap === 1 ? "" : "s"} ` +
+               `(CV = ${(r.cv * 100).toFixed(1)}%). Tier: ${flagLabel(r.tier)}.`);
+  }
+  if (r.trend && r.trend.n >= 2 && STATE.timeframe === "projected") {
+    parts.push(`Projection trend: slope = <strong>${fmt2(r.trend.slope)}</strong> per year, R² = ${r.trend.r2.toFixed(2)}, ` +
+               `90% CI = ±${fmt2(1.645 * r.trend.seResid)} on the normalised scale.`);
+  }
+  return parts.length ? `<div class="explanation">${parts.join(" ")}</div>` : "";
 }
 
-function renderMuniBlock(r) {
+function renderLocBlock(r) {
   const block = document.createElement("div");
-  block.className = "muni-block";
+  block.className = "glass loc-block";
+
   if (!r.supported) {
     block.innerHTML = `
-      <div class="muni-block-header">
-        <h3>${r.muni || "Unknown column"}</h3>
-        <span class="meta">unsupported</span>
+      <div class="loc-header">
+        <h3>${r.name || "Unknown column"}</h3>
+        <span class="loc-meta">unsupported</span>
       </div>
-      <div class="muni-block-body">${explainResult(r)}</div>`;
+      <div class="loc-body">${explainResult(r)}</div>`;
     return block;
   }
-  const years = Object.keys(r.rows).map(Number).sort((a,b)=>a-b);
-  const rowsHtml = years.map(y => {
-    const row = r.rows[y];
-    const cls = row.flag.startsWith("backcast") ? "row-backcast" : "";
-    return `<tr class="${cls}">
-      <td>${y}</td>
-      <td>${flagLabel(row.flag)}</td>
-      <td>${fmtInt(row.population)}</td>
-      <td>${fmt1(row.lpcd_mean)}</td>
-      <td>${fmt1(row.lpcd_lower90)} – ${fmt1(row.lpcd_upper90)}</td>
-      <td>${fmtInt(row.annual_m3_mean)}</td>
-      <td>${fmtInt(row.annual_m3_lower90)} – ${fmtInt(row.annual_m3_upper90)}</td>
-      <td>${fmtInt(row.monthly_m3_mean)}</td>
-    </tr>`;
-  }).join("");
+
+  const years = Object.keys(r.rows).map(Number).sort((a, b) => a - b);
+  const granularity = STATE.granularity;
+  const isWater = STATE.category === "water";
+  const valHeader = isWater ? "Annual m³" : "Annual ha";
+  const monthHeader = isWater ? "Monthly m³ (avg)" : "Monthly ha (avg)";
+
+  // Build table rows — note Status column moved to LAST position.
+  const showPop = STATE.popMode === "with";
+  let rowsHtml = "";
+
+  if (granularity === "monthly") {
+    // Twelve rows per year per location.
+    for (const y of years) {
+      const row = r.rows[y];
+      const cls = row.flag === "forecast" ? "row-forecast"
+                : (row.flag && row.flag.startsWith("backcast")) ? "row-backcast"
+                : "";
+      for (let m = 1; m <= 12; m++) {
+        const v = row.monthly_mean;
+        const lo = row.value_lower90 != null ? row.value_lower90 / 12 : null;
+        const hi = row.value_upper90 != null ? row.value_upper90 / 12 : null;
+        rowsHtml += `<tr class="${cls}">
+          <td>${y}-${String(m).padStart(2, "0")}</td>
+          ${showPop ? `<td>${fmtInt(row.population)}</td>` : ""}
+          <td>${fmtInt(v)}</td>
+          <td>${fmtInt(lo)} – ${fmtInt(hi)}</td>
+          <td>${flagLabel(row.flag)}</td>
+        </tr>`;
+      }
+    }
+  } else {
+    for (const y of years) {
+      const row = r.rows[y];
+      const cls = row.flag === "forecast" ? "row-forecast"
+                : (row.flag && row.flag.startsWith("backcast")) ? "row-backcast"
+                : "";
+      rowsHtml += `<tr class="${cls}">
+        <td>${y}</td>
+        ${showPop ? `<td>${fmtInt(row.population)}</td>` : ""}
+        <td>${fmtInt(row.value_mean)}</td>
+        <td>${fmtInt(row.value_lower90)} – ${fmtInt(row.value_upper90)}</td>
+        <td>${fmtInt(row.monthly_mean)}</td>
+        <td>${flagLabel(row.flag)}</td>
+      </tr>`;
+    }
+  }
+
+  const headers = granularity === "monthly"
+    ? `<th>Year-Month</th>${showPop ? "<th>Population</th>" : ""}<th>${monthHeader}</th><th>90% CI (monthly)</th><th>Status</th>`
+    : `<th>Year</th>${showPop ? "<th>Population</th>" : ""}<th>${valHeader}</th><th>${valHeader} 90% CI</th><th>${monthHeader}</th><th>Status</th>`;
+
+  // Interpretation
+  const insights = interpretSeries(r, {
+    category: STATE.category,
+    timeframe: STATE.timeframe,
+    popMode: STATE.popMode
+  });
+
   block.innerHTML = `
-    <div class="muni-block-header">
-      <h3>${r.muni}</h3>
-      <span class="meta">${r.tier ? r.tier.replace("backcast_","") + " tier · " + r.overlap + " overlap yrs" : "template series"}</span>
+    <div class="loc-header">
+      <h3>${r.name}</h3>
+      <span class="loc-meta">${
+        r.template === r.name ? "template series" :
+        r.tier ? `${r.tier.replace("backcast_", "")} tier · ${r.overlap} overlap yrs` :
+        "trend-extrapolated"
+      }</span>
     </div>
-    <div class="muni-block-body">
+    <div class="loc-body">
       ${explainResult(r)}
-      <div class="table-wrapper"><table>
-        <thead><tr>
-          <th>Year</th><th>Status</th><th>Population</th><th>LPCD</th><th>LPCD 90% CI</th>
-          <th>Annual m³</th><th>Annual m³ 90% CI</th><th>Monthly m³ (avg)</th>
-        </tr></thead>
-        <tbody>${rowsHtml}</tbody>
-      </table></div>
+      <div class="table-wrapper">
+        <table class="fluxo-table">
+          <thead><tr>${headers}</tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+      <div class="interp">
+        <h4>Automated interpretation</h4>
+        <ul>${insights.map(s => `<li>${s}</li>`).join("")}</ul>
+      </div>
     </div>`;
   return block;
 }
 
-//===========================================================================
-// EXPORTS
-//===========================================================================
+//=========================================================================
+// CSV EXPORT — strict wide format matching the upstream tooling spec.
+//   Row 1: ;,,,..., (one trailing comma per location)
+//   Row 2: ;,, + per-location units row
+//   Row 3: ;Year,Month,Loc1,Loc2,...
+//   Data: Year,Month,V1,V2,...
+//=========================================================================
 function buildFilledCsv(results) {
+  const supported = results.filter(r => r.supported);
+  if (!supported.length) return "";
+
+  const isWater = STATE.category === "water";
+  const unit = isWater ? "m3" : "ha";
+  const locNames = supported.map(r => r.name);
+
+  // Row 1: ";" + N+1 commas ⇒ N+2 cells, all empty (first cell is just ";")
+  const emptyHeader1 = ";" + ",".repeat(1 + locNames.length);
+  // Row 2: ";,," + per-location unit cells ⇒ Year & Month placeholders blank, unit on each loc
+  const unitsRow = ";,," + locNames.map(() => unit).join(",");
+  // Row 3: ";Year,Month,Loc1,Loc2,..."
+  const headerRow = ";Year,Month," + locNames.map(csvEscape).join(",");
+
+  const lines = [emptyHeader1, unitsRow, headerRow];
+
+  // Build a per-location year→annual lookup.
+  const lookup = {};
+  for (const r of supported) lookup[r.name] = r.rows;
+
+  // Year range from STATE; for each year, emit 12 monthly rows.
+  for (let y = STATE.rangeStart; y <= STATE.rangeEnd; y++) {
+    for (let m = 1; m <= 12; m++) {
+      const vals = locNames.map(n => {
+        const row = lookup[n][y];
+        if (!row || row.value_mean == null) return "";
+        // Monthly slice: annual / 12, rounded to 2dp.
+        const monthly = row.value_mean / 12;
+        return monthly.toFixed(2);
+      });
+      lines.push(`${y},${m},${vals.join(",")}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function csvEscape(s) {
+  if (s == null) return "";
+  const v = String(s);
+  return /[,";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+function buildLongCsv(results) {
+  // Long-format companion CSV with all status flags + CIs (separate from the strict wide CSV).
   const header = [
-    "year","municipality","tier","population",
-    "lpcd_mean","lpcd_lower90","lpcd_upper90",
-    "annual_m3_mean","annual_m3_lower90","annual_m3_upper90",
-    "monthly_m3_mean"
+    "year", "month", "location", "status",
+    "annual_mean", "annual_lower90", "annual_upper90",
+    "monthly_mean", "population"
   ];
   const lines = [header.join(",")];
   for (const r of results) {
-    if (!r.supported || !r.rows) continue;
-    const years = Object.keys(r.rows).map(Number).sort((a,b)=>a-b);
-    for (const y of years) {
+    if (!r.supported) continue;
+    for (const y of Object.keys(r.rows).map(Number).sort((a, b) => a - b)) {
       const row = r.rows[y];
-      lines.push([
-        y, JSON.stringify(r.muni), row.flag,
-        row.population == null ? "" : Math.round(row.population),
-        row.lpcd_mean == null ? "" : row.lpcd_mean.toFixed(2),
-        row.lpcd_lower90 == null ? "" : row.lpcd_lower90.toFixed(2),
-        row.lpcd_upper90 == null ? "" : row.lpcd_upper90.toFixed(2),
-        row.annual_m3_mean == null ? "" : Math.round(row.annual_m3_mean),
-        row.annual_m3_lower90 == null ? "" : Math.round(row.annual_m3_lower90),
-        row.annual_m3_upper90 == null ? "" : Math.round(row.annual_m3_upper90),
-        row.monthly_m3_mean == null ? "" : Math.round(row.monthly_m3_mean)
-      ].join(","));
+      for (let m = 1; m <= 12; m++) {
+        lines.push([
+          y, m, csvEscape(r.name), row.flag,
+          row.value_mean   == null ? "" : row.value_mean.toFixed(2),
+          row.value_lower90 == null ? "" : row.value_lower90.toFixed(2),
+          row.value_upper90 == null ? "" : row.value_upper90.toFixed(2),
+          row.monthly_mean == null ? "" : row.monthly_mean.toFixed(2),
+          row.population   == null ? "" : Math.round(row.population)
+        ].join(","));
+      }
     }
   }
   return lines.join("\n");
 }
 
 function downloadBlob(content, filename, type) {
-  const blob = new Blob([content], {type});
+  const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = filename;
@@ -491,138 +856,333 @@ function downloadBlob(content, filename, type) {
 }
 
 function copyTableToClipboard(results) {
-  // Tab-separated for paste into Excel
-  const lines = ["Year\tMunicipality\tTier\tPopulation\tLPCD\tLPCD low\tLPCD high\tAnnual m3\tAnnual low\tAnnual high\tMonthly m3"];
-  for (const r of results) {
-    if (!r.supported || !r.rows) continue;
-    const years = Object.keys(r.rows).map(Number).sort((a,b)=>a-b);
-    for (const y of years) {
-      const row = r.rows[y];
-      lines.push([
-        y, r.muni, row.flag,
-        row.population == null ? "" : Math.round(row.population),
-        row.lpcd_mean == null ? "" : row.lpcd_mean.toFixed(1),
-        row.lpcd_lower90 == null ? "" : row.lpcd_lower90.toFixed(1),
-        row.lpcd_upper90 == null ? "" : row.lpcd_upper90.toFixed(1),
-        row.annual_m3_mean == null ? "" : Math.round(row.annual_m3_mean),
-        row.annual_m3_lower90 == null ? "" : Math.round(row.annual_m3_lower90),
-        row.annual_m3_upper90 == null ? "" : Math.round(row.annual_m3_upper90),
-        row.monthly_m3_mean == null ? "" : Math.round(row.monthly_m3_mean)
-      ].join("\t"));
+  // Tab-separated for paste into Excel — strict wide format mirroring the CSV.
+  const supported = results.filter(r => r.supported);
+  const locNames = supported.map(r => r.name);
+  const lines = ["Year\tMonth\t" + locNames.join("\t")];
+  const lookup = {};
+  for (const r of supported) lookup[r.name] = r.rows;
+  for (let y = STATE.rangeStart; y <= STATE.rangeEnd; y++) {
+    for (let m = 1; m <= 12; m++) {
+      const vals = locNames.map(n => {
+        const row = lookup[n][y];
+        return (row && row.value_mean != null) ? (row.value_mean / 12).toFixed(2) : "";
+      });
+      lines.push(`${y}\t${m}\t${vals.join("\t")}`);
     }
   }
   const text = lines.join("\n");
   navigator.clipboard.writeText(text).then(() => {
-    alert("Copied " + (lines.length-1) + " rows to clipboard. Paste into Excel or Google Sheets.");
+    alert(`Copied ${lines.length - 1} rows × ${locNames.length} locations to clipboard.`);
   }).catch(err => alert("Copy failed: " + err.message));
 }
 
 function buildHtmlReport(results, originalFilename) {
   const ts = new Date().toLocaleString();
-  let body = `<h1>Fluxo Imputation Report</h1>
-  <p><strong>File:</strong> ${originalFilename}</p>
-  <p><strong>Generated:</strong> ${ts}</p>
-  <p><strong>Method:</strong> Station-substitution (MOVE / Hirsch 1982) using Doña Remedios Trinidad
-  as long-record template, per-tier empirically calibrated 90% CI.</p>`;
+  const category = STATE.category === "water" ? "Urban Water Use" : "Agricultural Crop Planted/Harvested";
+  const timeframe = STATE.timeframe === "projected" ? "Projected Data (2025–2050)" : "Current Data (2000–2024)";
+  const granularity = STATE.granularity === "monthly" ? "Monthly" : "Annual";
+  const popMode = STATE.popMode === "with" ? "Population data provided" : "Population data not provided";
+
+  let body = `
+    <h1>Fluxo Analysis Report</h1>
+    <p><em>College of Climate Change and Environmental Management · Central Luzon State University</em></p>
+    <hr/>
+    <p><strong>File:</strong> ${originalFilename}</p>
+    <p><strong>Generated:</strong> ${ts}</p>
+    <p><strong>Category:</strong> ${category}</p>
+    <p><strong>Timeframe:</strong> ${timeframe}</p>
+    <p><strong>Granularity:</strong> ${granularity}</p>
+    <p><strong>Reference mode:</strong> ${popMode}</p>
+    <p><strong>Method:</strong> Station-substitution (MOVE / Hirsch 1982) using the longest observed series in the upload as the template; trend extrapolation via OLS for projection; per-tier empirically calibrated 90% intervals.</p>
+  `;
   for (const r of results) {
     if (!r.supported) {
-      body += `<h2>${r.muni || "Unknown"}</h2><p style="color:red;">${r.reason}</p>`;
+      body += `<h2>${r.name}</h2><p style="color:#9a2c2c;">${r.reason}</p>`;
       continue;
     }
-    body += `<h2>${r.muni}</h2>`;
-    if (r.muni !== "Dona Remedios Trinidad") {
-      body += `<p>Tier: <strong>${r.tier}</strong>; overlap years: <strong>${r.overlap}</strong>;
-        CV(R)=${(r.cv*100).toFixed(1)}%; R̂=${r.Rmedian.toFixed(3)}.</p>`;
+    body += `<h2>${r.name}</h2>`;
+    if (r.template === r.name) {
+      body += `<p><em>Template series — values pass through unchanged.</em></p>`;
+    } else if (r.Rmedian != null) {
+      body += `<p>Template: <strong>${r.template}</strong>; overlap: <strong>${r.overlap}</strong> yrs; ` +
+              `CV(R)=${(r.cv * 100).toFixed(1)}%; R̂=${r.Rmedian.toFixed(3)}; tier: <strong>${r.tier}</strong>.</p>`;
     }
-    body += `<table border="1" cellpadding="4" style="border-collapse:collapse;">
-      <thead><tr><th>Year</th><th>Status</th><th>Population</th><th>LPCD</th>
-      <th>LPCD CI</th><th>Annual m³</th><th>Annual CI</th><th>Monthly m³</th></tr></thead><tbody>`;
-    const years = Object.keys(r.rows).map(Number).sort((a,b)=>a-b);
+    body += `<table border="1" cellpadding="4" style="border-collapse:collapse;font-size:13px;">
+      <thead><tr><th>Year</th><th>Population</th><th>Annual</th><th>90% CI</th><th>Monthly avg</th><th>Status</th></tr></thead><tbody>`;
+    const years = Object.keys(r.rows).map(Number).sort((a, b) => a - b);
     for (const y of years) {
       const row = r.rows[y];
-      body += `<tr><td>${y}</td><td>${row.flag}</td>
+      body += `<tr>
+        <td>${y}</td>
         <td>${fmtInt(row.population)}</td>
-        <td>${fmt1(row.lpcd_mean)}</td>
-        <td>${fmt1(row.lpcd_lower90)} – ${fmt1(row.lpcd_upper90)}</td>
-        <td>${fmtInt(row.annual_m3_mean)}</td>
-        <td>${fmtInt(row.annual_m3_lower90)} – ${fmtInt(row.annual_m3_upper90)}</td>
-        <td>${fmtInt(row.monthly_m3_mean)}</td></tr>`;
+        <td>${fmtInt(row.value_mean)}</td>
+        <td>${fmtInt(row.value_lower90)} – ${fmtInt(row.value_upper90)}</td>
+        <td>${fmtInt(row.monthly_mean)}</td>
+        <td>${row.flag}</td>
+      </tr>`;
     }
     body += `</tbody></table>`;
+
+    const insights = interpretSeries(r, {
+      category: STATE.category, timeframe: STATE.timeframe, popMode: STATE.popMode
+    });
+    body += `<h3 style="font-size:14px;color:#0d4a2f;">Automated interpretation</h3><ul>` +
+            insights.map(s => `<li>${s}</li>`).join("") + `</ul>`;
   }
-  body += `<h2>References</h2><ol>` +
-    REPORT_REFERENCES.map(r => `<li>${r}</li>`).join("") + `</ol>`;
+  body += `<hr/><p style="text-align:center;font-style:italic;color:#0d4a2f;">Developed by Jerome N. Ancheta – UST and Elijah C. Flora – CLSU.</p>`;
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Fluxo Report</title>
-    <style>body{font-family:sans-serif;max-width:1100px;margin:24px auto;padding:0 12px;color:#222;}
-    h1{color:#0F4F1F;} h2{color:#1B5E20;border-bottom:1px solid #ccc;padding-bottom:4px;}
-    table{font-size:13px;}</style></head><body>${body}</body></html>`;
+    <style>
+      body{font-family:'Inter',-apple-system,sans-serif;max-width:1100px;margin:24px auto;padding:0 18px;color:#0f2118;}
+      h1{color:#052e1c;font-family:Georgia,serif;}
+      h2{color:#0d4a2f;border-bottom:1px solid #cce5d5;padding-bottom:4px;margin-top:30px;}
+      table{font-size:13px;width:100%;margin-top:8px;}
+      thead th{background:#e9f5f0;color:#0d4a2f;text-align:left;padding:6px;}
+      td{padding:4px 6px;}
+    </style></head><body>${body}</body></html>`;
 }
 
-//===========================================================================
-// MAIN: WIRE UP UI
-//===========================================================================
-let currentResults = null;
-let currentFilename = null;
+//=========================================================================
+// WIZARD UI WIRING
+//=========================================================================
+function updateStepper(currentStep) {
+  $$("#stepper .step").forEach(el => {
+    const n = +el.dataset.step;
+    el.classList.remove("active", "done");
+    if (n < currentStep) el.classList.add("done");
+    else if (n === currentStep) el.classList.add("active");
+  });
+  $$(".step-panel").forEach(p => p.classList.toggle("active", +p.dataset.panel === currentStep));
+}
 
-const dropzone = document.getElementById("dropzone");
-const fileInput = document.getElementById("fileInput");
-const uploadInfo = document.getElementById("uploadInfo");
-const processingSection = document.getElementById("processingSection");
-const resultsSection = document.getElementById("resultsSection");
-const resultsContainer = document.getElementById("resultsContainer");
+function currentStep() {
+  const active = $(".step-panel.active");
+  return active ? +active.dataset.panel : 1;
+}
 
-dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("dragover"); });
-dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
-dropzone.addEventListener("drop", e => {
-  e.preventDefault(); dropzone.classList.remove("dragover");
-  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-});
-fileInput.addEventListener("change", e => {
-  if (e.target.files.length) handleFile(e.target.files[0]);
-});
+function canAdvance(stepNum) {
+  if (stepNum === 1) return !!STATE.category;
+  if (stepNum === 2) return !!STATE.timeframe;
+  if (stepNum === 3) return !!STATE.granularity;
+  if (stepNum === 4) return !!STATE.popMode;
+  return false;
+}
 
-async function handleFile(file) {
-  currentFilename = file.name;
-  uploadInfo.innerHTML = `<div class="alert alert-info">📄 Loaded <strong>${file.name}</strong> (${(file.size/1024).toFixed(1)} KB). Processing…</div>`;
-  processingSection.classList.remove("hidden");
-  resultsSection.classList.add("hidden");
+function refreshNextButtons() {
+  $$(".step-panel").forEach(p => {
+    const n = +p.dataset.panel;
+    const btn = p.querySelector('[data-action="next"]');
+    if (btn) btn.disabled = !canAdvance(n);
+  });
+  refreshRunButton();
+}
+
+function refreshRunButton() {
+  const ok = STATE.fileMain && (STATE.popMode === "without" || (STATE.popMode === "with" && STATE.filePop));
+  $("#runBtn").disabled = !ok;
+}
+
+function applyStep4Copy() {
+  // Step 4 question copy adapts to category.
+  if (STATE.category === "agriculture") {
+    $("#popQuestion").textContent = "Do you have farmer / household reference data?";
+    $("#popHelp").innerHTML = `If reference per-household area data is available, the platform will normalise crop area against it
+      before gap-filling and projecting. If not, it works directly with the raw planted/harvested values.
+      Either way, <strong>no external population data is used</strong> — only what you upload.`;
+    $("#popYesTitle").textContent = "Yes — I will upload reference data";
+    $("#popYesDesc").textContent = "Per-household normalisation. A second upload slot will appear in the next step.";
+    $("#popNoTitle").textContent = "No — work directly with the values";
+    $("#popNoDesc").textContent = "Direct station-substitution and trend extrapolation, no normalisation step.";
+  } else {
+    $("#popQuestion").textContent = "Do you have reference population data?";
+    $("#popHelp").innerHTML = `If population data is available, the platform will compute litres-per-capita-per-day (LPCD) and use it to
+      backcast or project demand more accurately. If not, the platform will work directly with the demand values.
+      Either way, <strong>no external population data is used</strong> — only what you upload.`;
+    $("#popYesTitle").textContent = "Yes — I will upload population data";
+    $("#popYesDesc").textContent = "Per-capita normalisation. A second upload slot will appear in the next step.";
+    $("#popNoTitle").textContent = "No — work directly with the values";
+    $("#popNoDesc").textContent = "Direct station-substitution and trend extrapolation, no per-capita step.";
+  }
+}
+
+function applyStep5Copy() {
+  const cat = STATE.category === "agriculture" ? "Crop planted/harvested" : "Water demand";
+  $("#mainLabel").textContent = `${cat} dataset`;
+  const helpBits = [
+    "Provide a wide-format CSV/XLSX (Year, Month, Loc1, Loc2, …). Empty cells are treated as missing values."
+  ];
+  if (STATE.timeframe === "projected") {
+    helpBits.push("Output horizon will extend to 2050 using fitted trend extrapolation.");
+  }
+  if (STATE.popMode === "with") {
+    helpBits.push("Upload the matching population/reference file in the second slot.");
+  }
+  $("#uploadHelp").innerHTML = helpBits.join(" ");
+  // Toggle second upload slot.
+  const popZone = $("#dropzonePop");
+  const row = $("#uploadRow");
+  if (STATE.popMode === "with") {
+    popZone.classList.remove("hidden");
+    row.classList.remove("single");
+  } else {
+    popZone.classList.add("hidden");
+    row.classList.add("single");
+  }
+}
+
+function selectOpt(el) {
+  const key = el.dataset.key;
+  const value = el.dataset.value;
+  STATE[key] = value;
+  // Mark sibling options.
+  el.parentElement.querySelectorAll(".opt").forEach(o => o.classList.toggle("selected", o === el));
+  if (key === "category") applyStep4Copy();
+  if (key === "popMode") applyStep5Copy();
+  if (key === "timeframe") {
+    // Pre-set horizon (visual cue purposes).
+    STATE.rangeStart = STATE.timeframe === "projected" ? HORIZON_PROJECTED.start : HORIZON_CURRENT.start;
+    STATE.rangeEnd   = STATE.timeframe === "projected" ? HORIZON_PROJECTED.end   : HORIZON_CURRENT.end;
+  }
+  refreshNextButtons();
+}
+
+function attachOptHandlers() {
+  $$(".opt").forEach(el => el.addEventListener("click", () => selectOpt(el)));
+}
+
+function attachStepNav() {
+  $$('[data-action="next"]').forEach(b => b.addEventListener("click", () => {
+    const cur = currentStep();
+    if (canAdvance(cur)) {
+      if (cur + 1 === 5) applyStep5Copy();
+      updateStepper(cur + 1);
+    }
+  }));
+  $$('[data-action="back"]').forEach(b => b.addEventListener("click", () => {
+    const cur = currentStep();
+    if (cur > 1) updateStepper(cur - 1);
+  }));
+  $$('[data-action="reset"]').forEach(b => b.addEventListener("click", () => resetAll()));
+}
+
+function resetAll() {
+  STATE.category = STATE.timeframe = STATE.granularity = STATE.popMode = null;
+  STATE.fileMain = STATE.filePop = null;
+  STATE.results = null;
+  $$(".opt").forEach(o => o.classList.remove("selected"));
+  $("#mainPill").innerHTML = "";
+  $("#popPill").innerHTML  = "";
+  $("#fileMain").value = "";
+  $("#filePop").value  = "";
+  $("#resultsSection").classList.add("hidden");
+  $("#processingSection").classList.add("hidden");
+  updateStepper(1);
+  refreshNextButtons();
+  document.getElementById("workflow").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+//=========================================================================
+// FILE UPLOAD WIRING
+//=========================================================================
+function bindDropzone(zoneEl, inputEl, pillEl, onFile) {
+  zoneEl.addEventListener("dragover", e => { e.preventDefault(); zoneEl.classList.add("dragover"); });
+  zoneEl.addEventListener("dragleave", () => zoneEl.classList.remove("dragover"));
+  zoneEl.addEventListener("drop", e => {
+    e.preventDefault();
+    zoneEl.classList.remove("dragover");
+    if (e.dataTransfer.files.length) onFile(e.dataTransfer.files[0]);
+  });
+  inputEl.addEventListener("change", e => {
+    if (e.target.files.length) onFile(e.target.files[0]);
+  });
+}
+
+function setPill(pillEl, file, ok = true) {
+  pillEl.innerHTML = `<span class="file-pill ${ok ? "" : "error"}">📄 ${file.name} · ${(file.size / 1024).toFixed(1)} KB</span>`;
+}
+
+//=========================================================================
+// RUN BUTTON
+//=========================================================================
+async function executeRun() {
+  $("#processingSection").classList.remove("hidden");
+  $("#resultsSection").classList.add("hidden");
+  $("#runBtn").disabled = true;
 
   try {
-    const rows = await parseFile(file);
-    const series = extractSeries(rows);
-    const results = [];
-    for (const s of series) {
-      const annual = annualize(s.records);
-      const out = backcastMuni(s.normalized, annual);
-      results.push({...out, muni: out.muni || s.raw});
-    }
-    currentResults = results;
-    renderResults(results);
+    const { results } = await runPipeline();
+    STATE.results = results;
+    $("#processingSection").classList.add("hidden");
+    renderSummary(results);
+    const container = $("#resultsContainer");
+    container.innerHTML = "";
+    for (const r of results) container.appendChild(renderLocBlock(r));
+    $("#resultsSection").classList.remove("hidden");
+    $("#resultsSection").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
-    processingSection.classList.add("hidden");
-    uploadInfo.innerHTML = `<div class="alert alert-err">⚠ ${err.message}</div>`;
+    $("#processingSection").classList.add("hidden");
+    const div = document.createElement("div");
+    div.className = "alert alert-err";
+    div.innerHTML = `<strong>Pipeline error:</strong> ${err.message}`;
+    $("#runZone").appendChild(div);
     console.error(err);
+  } finally {
+    refreshRunButton();
   }
 }
 
-function renderResults(results) {
-  processingSection.classList.add("hidden");
-  resultsSection.classList.remove("hidden");
-  renderSummary(results);
-  resultsContainer.innerHTML = "";
-  for (const r of results) resultsContainer.appendChild(renderMuniBlock(r));
-  uploadInfo.innerHTML = `<div class="alert alert-info">✓ Processed <strong>${results.length}</strong> series from <strong>${currentFilename}</strong>.</div>`;
+//=========================================================================
+// BOOT
+//=========================================================================
+function boot() {
+  // Year in footer.
+  const yEl = document.getElementById("year");
+  if (yEl) yEl.textContent = new Date().getFullYear();
+
+  attachOptHandlers();
+  attachStepNav();
+  refreshNextButtons();
+  applyStep4Copy();
+
+  bindDropzone($("#dropzoneMain"), $("#fileMain"), $("#mainPill"), (f) => {
+    STATE.fileMain = f;
+    setPill($("#mainPill"), f, true);
+    refreshRunButton();
+  });
+  bindDropzone($("#dropzonePop"), $("#filePop"), $("#popPill"), (f) => {
+    STATE.filePop = f;
+    setPill($("#popPill"), f, true);
+    refreshRunButton();
+  });
+
+  $("#runBtn").addEventListener("click", executeRun);
+
+  $("#downloadBtn").addEventListener("click", () => {
+    if (!STATE.results) return;
+    const baseName = (STATE.fileMain && STATE.fileMain.name) ? STATE.fileMain.name.replace(/\.[^.]+$/, "") : "fluxo";
+    downloadBlob(buildFilledCsv(STATE.results), `${baseName}_filled.csv`, "text/csv");
+  });
+  $("#copyBtn").addEventListener("click", () => {
+    if (!STATE.results) return;
+    copyTableToClipboard(STATE.results);
+  });
+  $("#downloadReportBtn").addEventListener("click", () => {
+    if (!STATE.results) return;
+    const baseName = (STATE.fileMain && STATE.fileMain.name) ? STATE.fileMain.name : "fluxo";
+    downloadBlob(buildHtmlReport(STATE.results, baseName), `${baseName.replace(/\.[^.]+$/, "")}_report.html`, "text/html");
+  });
+
+  // Reveal-on-scroll.
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) {
+        e.target.classList.add("visible");
+        io.unobserve(e.target);
+      }
+    }
+  }, { threshold: 0.12 });
+  $$(".reveal").forEach(el => io.observe(el));
 }
 
-document.getElementById("downloadBtn").addEventListener("click", () => {
-  if (!currentResults) return;
-  downloadBlob(buildFilledCsv(currentResults), (currentFilename || "fluxo") + "_filled.csv", "text/csv");
-});
-document.getElementById("copyBtn").addEventListener("click", () => {
-  if (!currentResults) return;
-  copyTableToClipboard(currentResults);
-});
-document.getElementById("downloadReportBtn").addEventListener("click", () => {
-  if (!currentResults) return;
-  downloadBlob(buildHtmlReport(currentResults, currentFilename), (currentFilename || "fluxo") + "_report.html", "text/html");
-});
+document.addEventListener("DOMContentLoaded", boot);

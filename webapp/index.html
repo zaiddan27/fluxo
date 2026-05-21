@@ -3,276 +3,737 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Fluxo — Bulacan Water Data Gap-Filling Tool · CLSU</title>
-<meta name="description" content="A scientific data imputation tool for Bulacan urban water demand. Built by CLSU." />
+<title>Fluxo · CCCEM-CLSU — Philippine Water &amp; Crop Gap-Filling and Projection Platform</title>
+<meta name="description" content="A nationwide Philippine platform for gap-filling and projecting urban water demand and agricultural crop planted/harvested data — by the College of Climate Change and Environmental Management, Central Luzon State University." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
 <style>
+  /*=========================================================================
+    DESIGN TOKENS — Glassmorphism × Eco-Futurism
+    Deep greens, aqua blues, misty whites, warm sunlight, earth gradients.
+  =========================================================================*/
   :root {
-    --clsu-green-dark: #0F4F1F;
-    --clsu-green: #1B5E20;
-    --clsu-green-mid: #2E7D32;
-    --clsu-green-light: #66BB6A;
-    --clsu-green-pale: #E8F5E9;
-    --clsu-gold: #F9A825;
-    --clsu-gold-light: #FFD54F;
-    --bg: #FAFBF7;
-    --surface: #FFFFFF;
-    --ink: #1A1A1A;
-    --ink-soft: #4F4F4F;
-    --ink-muted: #757575;
-    --border: #DCE5DA;
-    --high-bg: #E8F5E9; --high-fg: #1B5E20;
-    --mid-bg:  #FFF8E1; --mid-fg:  #8D6E00;
-    --low-bg:  #FCE4EC; --low-fg:  #AD1457;
-    --obs-bg:  #E3F2FD; --obs-fg:  #1565C0;
-    --shadow: 0 1px 3px rgba(15,79,31,0.08), 0 4px 12px rgba(15,79,31,0.06);
-    --radius: 12px;
+    /* Eco palette */
+    --eco-forest-deep: #052e1c;
+    --eco-forest: #0d4a2f;
+    --eco-forest-mid: #1f7a4d;
+    --eco-leaf: #3aa674;
+    --eco-mint: #a4e3c2;
+    --eco-aqua-deep: #0b4a63;
+    --eco-aqua: #1d7ea0;
+    --eco-aqua-light: #6cc6e0;
+    --eco-mist: #e9f5f0;
+    --eco-sun: #f6c66b;
+    --eco-sun-soft: #fbe2a4;
+    --eco-earth: #b78b54;
+    --eco-cream: #f7f3ea;
+
+    /* Surfaces */
+    --canvas: #eaf6ef;
+    --glass-bg: rgba(255, 255, 255, 0.42);
+    --glass-bg-strong: rgba(255, 255, 255, 0.62);
+    --glass-bg-dark: rgba(8, 38, 24, 0.55);
+    --glass-border: rgba(255, 255, 255, 0.55);
+    --glass-border-soft: rgba(255, 255, 255, 0.28);
+    --glass-shadow: 0 14px 38px -16px rgba(5, 46, 28, 0.32), 0 4px 14px -8px rgba(5, 46, 28, 0.18);
+    --glass-shadow-soft: 0 8px 24px -12px rgba(5, 46, 28, 0.22);
+
+    /* Ink */
+    --ink: #0f2118;
+    --ink-soft: #2d4a3a;
+    --ink-muted: #5b7367;
+    --ink-on-dark: #f4fbf6;
+
+    /* Tier colors */
+    --tier-obs-bg: rgba(108, 198, 224, 0.18);   --tier-obs-fg: #0b4a63;
+    --tier-hi-bg:  rgba(58, 166, 116, 0.22);    --tier-hi-fg:  #0d4a2f;
+    --tier-mid-bg: rgba(246, 198, 107, 0.30);   --tier-mid-fg: #7a5210;
+    --tier-low-bg: rgba(183, 139, 84, 0.28);    --tier-low-fg: #6d4413;
+    --tier-fc-bg:  rgba(29, 126, 160, 0.20);    --tier-fc-fg:  #0b4a63;
+    --tier-miss-bg:#eef2ef;                      --tier-miss-fg:#5b7367;
+
+    /* Radii / motion */
+    --r-sm: 10px;
+    --r-md: 16px;
+    --r-lg: 22px;
+    --r-xl: 28px;
+    --ease: cubic-bezier(.22,.61,.36,1);
   }
 
-  * { box-sizing: border-box; }
+  *, *::before, *::after { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--ink);
-    line-height: 1.55;
-    min-height: 100vh;
-  }
-  a { color: var(--clsu-green-mid); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  code, pre { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+  html { scroll-behavior: smooth; }
 
-  /* Header */
-  header {
-    background: linear-gradient(135deg, var(--clsu-green-dark) 0%, var(--clsu-green) 60%, var(--clsu-green-mid) 100%);
-    color: white;
-    padding: 28px 32px;
-    box-shadow: 0 2px 12px rgba(15,79,31,0.18);
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--ink);
+    line-height: 1.6;
+    background: var(--canvas);
+    overflow-x: hidden;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  .header-inner {
-    max-width: 1200px;
+
+  h1, h2, h3, h4 {
+    font-family: 'Fraunces', 'Inter', serif;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0;
+    color: var(--eco-forest-deep);
+  }
+  h1 { font-weight: 500; }
+
+  code, pre, .mono { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+  a { color: var(--eco-aqua); text-decoration: none; transition: color .2s var(--ease); }
+  a:hover { color: var(--eco-aqua-deep); }
+  ::selection { background: var(--eco-mint); color: var(--eco-forest-deep); }
+
+  /*=========================================================================
+    ATMOSPHERIC BACKGROUND — layered drifting gradients
+  =========================================================================*/
+  .atmosphere {
+    position: fixed; inset: 0; z-index: -2;
+    background:
+      radial-gradient(1100px 700px at 78% -10%, rgba(108, 198, 224, 0.45), transparent 60%),
+      radial-gradient(900px 600px at -10% 30%, rgba(58, 166, 116, 0.40), transparent 65%),
+      radial-gradient(700px 500px at 50% 110%, rgba(246, 198, 107, 0.28), transparent 60%),
+      linear-gradient(180deg, #d6f0e1 0%, #e3f3ec 40%, #ecf6f1 100%);
+  }
+  .atmosphere::before, .atmosphere::after {
+    content: ""; position: absolute; inset: -10% -5%;
+    background:
+      radial-gradient(600px 400px at 20% 30%, rgba(58, 166, 116, 0.18), transparent 70%),
+      radial-gradient(500px 360px at 80% 70%, rgba(29, 126, 160, 0.18), transparent 70%);
+    filter: blur(30px);
+    animation: drift 38s ease-in-out infinite alternate;
+  }
+  .atmosphere::after {
+    inset: -15% -10%;
+    background:
+      radial-gradient(700px 500px at 60% 20%, rgba(164, 227, 194, 0.30), transparent 70%),
+      radial-gradient(500px 400px at 30% 80%, rgba(246, 198, 107, 0.18), transparent 70%);
+    animation-duration: 52s;
+    animation-direction: alternate-reverse;
+  }
+  @keyframes drift {
+    0%   { transform: translate3d(0,0,0) scale(1); }
+    50%  { transform: translate3d(2%, -1.5%, 0) scale(1.04); }
+    100% { transform: translate3d(-2%, 1.5%, 0) scale(1.02); }
+  }
+
+  /* Subtle floating particles (leaves / droplets) */
+  .particles { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+  .particle {
+    position: absolute;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.85), rgba(108,198,224,0.4) 60%, transparent 75%);
+    opacity: 0.55;
+    animation: float 22s linear infinite;
+  }
+  .particle:nth-child(odd) { background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.7), rgba(58,166,116,0.35) 60%, transparent 75%); }
+  @keyframes float {
+    0%   { transform: translate3d(0, 110vh, 0) scale(0.6); opacity: 0; }
+    10%  { opacity: 0.7; }
+    90%  { opacity: 0.5; }
+    100% { transform: translate3d(40px, -10vh, 0) scale(1); opacity: 0; }
+  }
+
+  /*=========================================================================
+    GLASS PRIMITIVE
+  =========================================================================*/
+  .glass {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border-soft);
+    border-radius: var(--r-lg);
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    box-shadow: var(--glass-shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .glass::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.55), rgba(255,255,255,0.02) 45%, rgba(255,255,255,0.18) 100%);
+    pointer-events: none;
+    border-radius: inherit;
+    mix-blend-mode: overlay;
+    opacity: 0.6;
+  }
+  .glass.solid { background: var(--glass-bg-strong); }
+  .glass.dark {
+    background: var(--glass-bg-dark);
+    border-color: rgba(255,255,255,0.18);
+    color: var(--ink-on-dark);
+  }
+  .glass.dark::before { background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent 50%); }
+  .glass.dark h1, .glass.dark h2, .glass.dark h3, .glass.dark h4 { color: #f4fbf6; }
+
+  /*=========================================================================
+    NAV
+  =========================================================================*/
+  .topnav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    background: rgba(234, 246, 239, 0.65);
+    border-bottom: 1px solid rgba(13, 74, 47, 0.08);
+  }
+  .topnav-inner {
+    max-width: 1280px;
     margin: 0 auto;
+    padding: 14px 28px;
     display: flex;
     align-items: center;
     gap: 22px;
   }
-  .logo {
-    width: 72px; height: 72px;
-    border-radius: 50%;
-    background: white;
-    padding: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-    flex-shrink: 0;
+  .brand-mini {
+    display: flex; align-items: center; gap: 12px;
+    color: var(--eco-forest-deep);
+    font-weight: 600;
   }
-  .logo img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-  .brand h1 {
-    margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.02em;
+  .brand-mini img {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: white; padding: 3px;
+    box-shadow: 0 4px 12px rgba(13, 74, 47, 0.18);
+    object-fit: cover;
   }
-  .brand .tagline { margin: 4px 0 0; font-size: 0.92rem; opacity: 0.92; }
-  .brand .meta { margin-top: 6px; font-size: 0.78rem; opacity: 0.78; }
-
-  /* Main */
-  main {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 36px 32px 64px;
-  }
-
-  section {
-    margin-bottom: 36px;
-  }
-  section h2 {
-    font-size: 1.35rem;
-    color: var(--clsu-green-dark);
-    margin: 0 0 14px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid var(--clsu-gold);
-    display: inline-block;
-  }
-  section h3 {
+  .brand-mini .brand-name {
+    font-family: 'Fraunces', serif;
     font-size: 1.05rem;
-    color: var(--clsu-green-dark);
-    margin: 18px 0 8px;
+    line-height: 1.1;
+  }
+  .brand-mini .brand-sub {
+    font-size: 0.7rem;
+    color: var(--ink-muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .nav-links {
+    margin-left: auto;
+    display: flex; gap: 6px;
+  }
+  .nav-links a {
+    color: var(--eco-forest);
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    transition: all .2s var(--ease);
+  }
+  .nav-links a:hover {
+    background: rgba(255,255,255,0.7);
+    color: var(--eco-forest-deep);
+  }
+  .nav-cta {
+    background: linear-gradient(135deg, var(--eco-forest-mid), var(--eco-aqua));
+    color: white !important;
+    box-shadow: 0 6px 18px -8px rgba(13, 74, 47, 0.5);
+  }
+  .nav-cta:hover { transform: translateY(-1px); }
+
+  @media (max-width: 760px) {
+    .nav-links a:not(.nav-cta) { display: none; }
+    .topnav-inner { padding: 12px 18px; }
   }
 
-  .card {
-    background: var(--surface);
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    padding: 24px;
-    box-shadow: var(--shadow);
+  /*=========================================================================
+    HERO
+  =========================================================================*/
+  .hero {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 80px 28px 60px;
+    position: relative;
   }
-
-  /* Intro */
-  .intro {
+  .hero-grid {
     display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 22px;
+    grid-template-columns: 1.35fr 1fr;
+    gap: 36px;
+    align-items: stretch;
   }
-  .intro p { color: var(--ink-soft); margin: 0 0 10px; }
-  .intro ul { color: var(--ink-soft); margin: 0; padding-left: 22px; }
-  .intro li { margin-bottom: 4px; }
-  .intro-side {
-    background: var(--clsu-green-pale);
-    border-left: 4px solid var(--clsu-green);
+  .hero-text { padding: 44px 44px 40px; }
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px 7px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.55);
+    border: 1px solid rgba(13, 74, 47, 0.12);
+    font-size: 0.74rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--eco-forest);
+    font-weight: 600;
+    margin-bottom: 22px;
   }
-  .intro-side h3 { margin-top: 0; }
-  .intro-side .stat {
-    display: flex; justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px dashed var(--border);
+  .hero-eyebrow .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--eco-leaf);
+    box-shadow: 0 0 0 4px rgba(58, 166, 116, 0.22);
+    animation: pulse 2.4s ease-in-out infinite;
   }
-  .intro-side .stat:last-child { border: none; }
-  .intro-side .stat strong { color: var(--clsu-green-dark); }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(58, 166, 116, 0.22); }
+    50%      { box-shadow: 0 0 0 8px rgba(58, 166, 116, 0.08); }
+  }
 
-  @media (max-width: 800px) {
-    .intro { grid-template-columns: 1fr; }
-    .header-inner { flex-direction: column; text-align: center; }
+  .hero h1 {
+    font-size: clamp(2.2rem, 4.2vw, 3.6rem);
+    line-height: 1.05;
+    margin-bottom: 18px;
   }
+  .hero h1 .accent {
+    background: linear-gradient(120deg, var(--eco-forest-mid) 0%, var(--eco-aqua) 60%, var(--eco-leaf) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero-lede {
+    color: var(--ink-soft);
+    font-size: 1.06rem;
+    margin-bottom: 26px;
+    max-width: 58ch;
+  }
+  .hero-actions {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 30px;
+  }
+  .hero-meta {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    border-top: 1px dashed rgba(13, 74, 47, 0.16);
+    padding-top: 22px;
+  }
+  .hero-meta .item .k {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-muted);
+    margin-bottom: 4px;
+  }
+  .hero-meta .item .v {
+    font-family: 'Fraunces', serif;
+    font-size: 1.45rem;
+    color: var(--eco-forest-deep);
+    font-weight: 600;
+    line-height: 1.05;
+  }
+  .hero-meta .item .s {
+    font-size: 0.78rem; color: var(--ink-muted); margin-top: 2px;
+  }
+
+  /* Hero visual — floating glass observatory */
+  .hero-visual {
+    position: relative;
+    min-height: 460px;
+    border-radius: var(--r-xl);
+    overflow: hidden;
+    background:
+      radial-gradient(380px 280px at 30% 30%, rgba(108, 198, 224, 0.55), transparent 70%),
+      radial-gradient(420px 320px at 70% 70%, rgba(58, 166, 116, 0.45), transparent 70%),
+      linear-gradient(160deg, #c9ebd9 0%, #d9eef0 50%, #f1efe1 100%);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
+  .floater {
+    position: absolute;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.6);
+    box-shadow: 0 18px 40px -22px rgba(13, 74, 47, 0.45);
+    padding: 14px 16px;
+    animation: floatY 9s ease-in-out infinite;
+  }
+  .floater .ftitle { font-size: 0.7rem; color: var(--ink-muted); letter-spacing: 0.08em; text-transform: uppercase; }
+  .floater .fval { font-family: 'Fraunces', serif; font-size: 1.4rem; color: var(--eco-forest-deep); font-weight: 600; }
+  .floater .fsub { font-size: 0.74rem; color: var(--eco-forest-mid); font-weight: 500; }
+  .floater.f1 { top: 8%;  left: 8%;  animation-delay: -1s; }
+  .floater.f2 { top: 40%; right: 6%; animation-delay: -3s; }
+  .floater.f3 { bottom: 8%; left: 14%; animation-delay: -5s; }
+
+  .sparkline {
+    width: 100%; height: 38px; margin-top: 8px;
+    display: block;
+  }
+  @keyframes floatY {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-10px); }
+  }
+
+  /* Wave divider at bottom of hero visual */
+  .hero-visual::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 120px;
+    background:
+      radial-gradient(800px 200px at 50% 100%, rgba(255,255,255,0.55), transparent 60%);
+    pointer-events: none;
+  }
+
+  @media (max-width: 960px) {
+    .hero-grid { grid-template-columns: 1fr; }
+    .hero { padding: 56px 22px 36px; }
+    .hero-text { padding: 30px 26px 26px; }
+    .hero-visual { min-height: 340px; }
+  }
+
+  /*=========================================================================
+    BUTTONS
+  =========================================================================*/
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 22px;
+    border-radius: 999px;
+    border: none;
+    font-family: inherit;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s var(--ease);
+    text-decoration: none;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--eco-forest-mid), var(--eco-aqua));
+    color: white;
+    box-shadow: 0 10px 26px -12px rgba(13, 74, 47, 0.55);
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 32px -12px rgba(13, 74, 47, 0.6);
+  }
+  .btn-ghost {
+    background: rgba(255,255,255,0.55);
+    color: var(--eco-forest-deep);
+    border: 1px solid rgba(13, 74, 47, 0.18);
+  }
+  .btn-ghost:hover {
+    background: rgba(255,255,255,0.85);
+    border-color: rgba(13, 74, 47, 0.3);
+  }
+  .btn-sun {
+    background: linear-gradient(135deg, var(--eco-sun), #ffd98c);
+    color: #4a3308;
+    box-shadow: 0 10px 22px -12px rgba(246, 198, 107, 0.7);
+  }
+  .btn-sun:hover { transform: translateY(-1px); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+  /*=========================================================================
+    SECTIONS
+  =========================================================================*/
+  section.canvas {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 64px 28px;
+  }
+  .section-eyebrow {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(13, 74, 47, 0.08);
+    color: var(--eco-forest-mid);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+  .section-title {
+    font-size: clamp(1.8rem, 3vw, 2.4rem);
+    margin-bottom: 12px;
+    max-width: 22ch;
+  }
+  .section-lede {
+    color: var(--ink-soft);
+    font-size: 1.02rem;
+    max-width: 64ch;
+    margin: 0 0 32px;
+  }
+
+  /*=========================================================================
+    MISSION GRID
+  =========================================================================*/
+  .mission-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 18px;
+  }
+  .mission-card { padding: 26px 24px; }
+  .mission-card .icon {
+    width: 44px; height: 44px;
+    display: grid; place-items: center;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--eco-mint), var(--eco-aqua-light));
+    color: var(--eco-forest-deep);
+    margin-bottom: 16px;
+    font-size: 1.4rem;
+  }
+  .mission-card h3 {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+  }
+  .mission-card p {
+    color: var(--ink-soft);
+    margin: 0;
+    font-size: 0.94rem;
+  }
+
+  /*=========================================================================
+    WORKFLOW WIZARD
+  =========================================================================*/
+  .wizard {
+    padding: 36px;
+  }
+  .stepper {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 32px;
+    position: relative;
+  }
+  .stepper::before {
+    content: "";
+    position: absolute;
+    left: 5%; right: 5%; top: 16px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(13, 74, 47, 0.12) 0%, rgba(13, 74, 47, 0.12) 100%);
+    z-index: 0;
+  }
+  .step {
+    flex: 1;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+    cursor: default;
+  }
+  .step .bubble {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.85);
+    border: 2px solid rgba(13, 74, 47, 0.15);
+    color: var(--ink-muted);
+    display: grid; place-items: center;
+    font-weight: 700;
+    margin: 0 auto 8px;
+    transition: all .25s var(--ease);
+    font-family: 'Fraunces', serif;
+  }
+  .step .lbl {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    letter-spacing: 0.04em;
+  }
+  .step.active .bubble {
+    background: linear-gradient(135deg, var(--eco-forest-mid), var(--eco-aqua));
+    border-color: transparent;
+    color: white;
+    box-shadow: 0 8px 20px -10px rgba(13, 74, 47, 0.55), 0 0 0 6px rgba(58, 166, 116, 0.12);
+  }
+  .step.active .lbl { color: var(--eco-forest-deep); font-weight: 600; }
+  .step.done .bubble {
+    background: var(--eco-mint);
+    border-color: var(--eco-leaf);
+    color: var(--eco-forest-deep);
+  }
+  .step.done .lbl { color: var(--eco-forest-mid); }
+
+  .step-panel {
+    display: none;
+    animation: panel-in .45s var(--ease);
+  }
+  .step-panel.active { display: block; }
+  @keyframes panel-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .step-q {
+    font-family: 'Fraunces', serif;
+    font-size: 1.35rem;
+    color: var(--eco-forest-deep);
+    margin-bottom: 6px;
+  }
+  .step-help {
+    color: var(--ink-soft);
+    font-size: 0.96rem;
+    margin-bottom: 22px;
+    max-width: 60ch;
+  }
+
+  .opt-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 14px;
+  }
+  .opt {
+    cursor: pointer;
+    padding: 22px 22px 20px;
+    border-radius: var(--r-md);
+    background: rgba(255,255,255,0.55);
+    border: 1.5px solid rgba(13, 74, 47, 0.12);
+    transition: all .2s var(--ease);
+    position: relative;
+    overflow: hidden;
+  }
+  .opt::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(58, 166, 116, 0.08), transparent 70%);
+    opacity: 0;
+    transition: opacity .25s var(--ease);
+    pointer-events: none;
+  }
+  .opt:hover {
+    border-color: rgba(58, 166, 116, 0.45);
+    transform: translateY(-2px);
+    box-shadow: var(--glass-shadow-soft);
+  }
+  .opt:hover::before { opacity: 1; }
+  .opt.selected {
+    border-color: var(--eco-leaf);
+    background: linear-gradient(135deg, rgba(164, 227, 194, 0.45), rgba(255,255,255,0.6));
+    box-shadow: 0 0 0 3px rgba(58, 166, 116, 0.15), var(--glass-shadow-soft);
+  }
+  .opt .opt-icon {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--eco-mint), var(--eco-aqua-light));
+    display: grid; place-items: center;
+    font-size: 1.15rem;
+    margin-bottom: 12px;
+    color: var(--eco-forest-deep);
+  }
+  .opt .opt-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.05rem;
+    color: var(--eco-forest-deep);
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .opt .opt-desc {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    line-height: 1.45;
+  }
+
+  .step-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 28px;
+    padding-top: 22px;
+    border-top: 1px dashed rgba(13, 74, 47, 0.14);
+  }
+  .step-nav .right { display: flex; gap: 10px; }
 
   /* Upload zone */
   .dropzone {
     display: block;
-    border: 2px dashed var(--clsu-green-light);
-    border-radius: var(--radius);
-    padding: 48px 24px;
+    border: 2px dashed rgba(58, 166, 116, 0.55);
+    border-radius: var(--r-lg);
+    padding: 44px 24px;
     text-align: center;
-    background: var(--surface);
+    background: rgba(255,255,255,0.45);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all .25s var(--ease);
+    position: relative;
+    overflow: hidden;
   }
-  .dropzone .icon,
-  .dropzone .primary,
-  .dropzone .secondary { display: block; margin: 0 auto; }
-  .dropzone .icon { line-height: 1; margin-bottom: 12px; }
-  .dropzone .primary { margin-top: 4px; }
-  .dropzone .secondary { margin-top: 6px; }
+  .dropzone::before {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(300px 200px at 30% 30%, rgba(108, 198, 224, 0.18), transparent 70%),
+      radial-gradient(280px 200px at 70% 70%, rgba(58, 166, 116, 0.18), transparent 70%);
+    opacity: 0.6;
+    pointer-events: none;
+  }
   .dropzone:hover, .dropzone.dragover {
-    border-color: var(--clsu-green);
-    background: var(--clsu-green-pale);
+    border-color: var(--eco-leaf);
+    background: rgba(255,255,255,0.7);
+    transform: translateY(-1px);
   }
-  .dropzone .icon {
-    font-size: 3rem;
-    color: var(--clsu-green-mid);
-    margin-bottom: 12px;
+  .dropzone input[type=file] { display: none; }
+  .dropzone .ico {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--eco-mint), var(--eco-aqua-light));
+    margin: 0 auto 14px;
+    display: grid; place-items: center;
+    font-size: 1.6rem;
+    color: var(--eco-forest-deep);
+    box-shadow: 0 8px 22px -10px rgba(58, 166, 116, 0.55);
   }
   .dropzone .primary {
-    color: var(--clsu-green-dark);
-    font-size: 1.1rem;
+    color: var(--eco-forest-deep);
+    font-family: 'Fraunces', serif;
+    font-size: 1.15rem;
     font-weight: 600;
     margin: 0;
   }
   .dropzone .secondary {
     color: var(--ink-muted);
-    font-size: 0.9rem;
-    margin-top: 6px;
+    font-size: 0.86rem;
+    margin-top: 8px;
   }
-  .dropzone input[type=file] { display: none; }
+  .upload-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .upload-row.single { grid-template-columns: 1fr; }
+  @media (max-width: 720px) { .upload-row { grid-template-columns: 1fr; } }
 
-  /* Buttons */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 9px 18px;
-    border-radius: 8px;
-    background: var(--clsu-green);
-    color: white;
-    border: none;
-    font-size: 0.92rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s ease;
-    font-family: inherit;
-  }
-  .btn:hover { background: var(--clsu-green-dark); }
-  .btn.secondary {
-    background: white;
-    color: var(--clsu-green-dark);
-    border: 1.5px solid var(--clsu-green);
-  }
-  .btn.secondary:hover { background: var(--clsu-green-pale); }
-  .btn.gold {
-    background: var(--clsu-gold);
-    color: var(--ink);
-  }
-  .btn.gold:hover { background: var(--clsu-gold-light); }
-
-  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
-
-  /* Tables */
-  .table-wrapper {
-    overflow-x: auto;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.88rem;
-  }
-  th, td {
-    padding: 9px 12px;
-    text-align: right;
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-  }
-  th:first-child, td:first-child {
-    text-align: left;
-    font-weight: 500;
-  }
-  thead th {
-    background: var(--clsu-green-pale);
-    color: var(--clsu-green-dark);
-    font-weight: 600;
-    border-bottom: 2px solid var(--clsu-green-mid);
-    text-align: left;
-  }
-  thead th:not(:first-child) { text-align: right; }
-  tbody tr:hover { background: #FAFBF7; }
-  tbody tr.row-backcast td { background: #FFFCF0; }
-
-  /* Flag pills */
-  .flag {
-    display: inline-block;
-    padding: 2px 9px;
+  .file-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 12px;
+    padding: 6px 14px;
+    background: rgba(255,255,255,0.7);
     border-radius: 999px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    white-space: nowrap;
-    letter-spacing: 0.02em;
+    font-size: 0.85rem;
+    color: var(--eco-forest-mid);
+    border: 1px solid rgba(58, 166, 116, 0.3);
   }
-  .flag-observed     { background: var(--obs-bg); color: var(--obs-fg); }
-  .flag-backcast_high { background: var(--high-bg); color: var(--high-fg); }
-  .flag-backcast_mid  { background: var(--mid-bg);  color: var(--mid-fg);  }
-  .flag-backcast_low  { background: var(--low-bg);  color: var(--low-fg);  }
-  .flag-unsupported   { background: #ECEFF1; color: #455A64; }
+  .file-pill.error { color: #9a2c2c; border-color: rgba(154, 44, 44, 0.3); background: rgba(255, 230, 230, 0.7); }
 
-  /* Result summary cards */
+  /*=========================================================================
+    SUMMARY CARDS / FLAGS / TABLES
+  =========================================================================*/
   .summary-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
     gap: 14px;
-    margin-bottom: 24px;
+    margin-bottom: 26px;
   }
   .summary-card {
-    background: white;
-    border-radius: 8px;
-    padding: 16px;
-    border: 1px solid var(--border);
-    border-top: 3px solid var(--clsu-green-mid);
+    padding: 18px 20px;
   }
   .summary-card .label {
     color: var(--ink-muted);
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.08em;
     margin-bottom: 6px;
   }
   .summary-card .value {
-    color: var(--clsu-green-dark);
-    font-size: 1.6rem;
-    font-weight: 700;
+    font-family: 'Fraunces', serif;
+    color: var(--eco-forest-deep);
+    font-size: 1.7rem;
+    font-weight: 600;
+    line-height: 1.1;
   }
   .summary-card .sub {
     color: var(--ink-muted);
@@ -280,350 +741,772 @@
     margin-top: 4px;
   }
 
-  /* Per-muni section */
-  .muni-block {
-    margin-bottom: 28px;
-    background: var(--surface);
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
+  .flag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .flag-observed     { background: var(--tier-obs-bg);  color: var(--tier-obs-fg); }
+  .flag-backcast_high{ background: var(--tier-hi-bg);   color: var(--tier-hi-fg); }
+  .flag-backcast_mid { background: var(--tier-mid-bg);  color: var(--tier-mid-fg); }
+  .flag-backcast_low { background: var(--tier-low-bg);  color: var(--tier-low-fg); }
+  .flag-forecast     { background: var(--tier-fc-bg);   color: var(--tier-fc-fg); }
+  .flag-missing      { background: var(--tier-miss-bg); color: var(--tier-miss-fg); }
+  .flag-unsupported  { background: var(--tier-miss-bg); color: var(--tier-miss-fg); }
+
+  .loc-block {
+    margin-bottom: 22px;
+    padding: 0;
     overflow: hidden;
   }
-  .muni-block-header {
-    background: linear-gradient(90deg, var(--clsu-green-pale) 0%, #F5FAF5 100%);
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--border);
+  .loc-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 10px;
+    padding: 18px 22px;
+    background: linear-gradient(90deg, rgba(164, 227, 194, 0.35), rgba(255,255,255,0.15));
+    border-bottom: 1px solid rgba(13, 74, 47, 0.08);
   }
-  .muni-block-header h3 {
+  .loc-header h3 {
+    font-size: 1.15rem;
     margin: 0;
-    font-size: 1.1rem;
-    color: var(--clsu-green-dark);
   }
-  .muni-block-header .meta {
+  .loc-meta {
     color: var(--ink-soft);
-    font-size: 0.85rem;
+    font-size: 0.84rem;
+    font-weight: 500;
   }
-  .muni-block-body { padding: 16px 20px; }
-  .explanation {
-    background: #FAFBF7;
-    border-left: 3px solid var(--clsu-green-light);
-    padding: 12px 16px;
-    margin-bottom: 14px;
-    font-size: 0.9rem;
-    color: var(--ink-soft);
-    border-radius: 0 6px 6px 0;
-  }
-  .explanation strong { color: var(--clsu-green-dark); }
+  .loc-body { padding: 18px 22px 22px; }
 
-  /* Collapsible methodology */
-  details {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0;
-    margin-bottom: 14px;
+  .explanation {
+    background: rgba(255,255,255,0.5);
+    border-left: 3px solid var(--eco-leaf);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border-radius: 0 10px 10px 0;
+    font-size: 0.92rem;
+    color: var(--ink-soft);
   }
-  details summary {
-    cursor: pointer;
-    padding: 14px 20px;
+  .explanation strong { color: var(--eco-forest-deep); }
+
+  .table-wrapper {
+    overflow-x: auto;
+    border-radius: 14px;
+    border: 1px solid rgba(13, 74, 47, 0.08);
+    background: rgba(255,255,255,0.6);
+  }
+  table.fluxo-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+  table.fluxo-table th, table.fluxo-table td {
+    padding: 9px 12px;
+    text-align: right;
+    border-bottom: 1px solid rgba(13, 74, 47, 0.06);
+    white-space: nowrap;
+  }
+  table.fluxo-table th:first-child, table.fluxo-table td:first-child {
+    text-align: left;
+    font-weight: 500;
+  }
+  table.fluxo-table th:last-child, table.fluxo-table td:last-child {
+    text-align: center;
+  }
+  table.fluxo-table thead th {
+    background: rgba(164, 227, 194, 0.30);
+    color: var(--eco-forest-deep);
     font-weight: 600;
-    color: var(--clsu-green-dark);
-    border-radius: var(--radius);
+    border-bottom: 2px solid rgba(58, 166, 116, 0.4);
+    text-align: left;
+  }
+  table.fluxo-table thead th:not(:first-child):not(:last-child) { text-align: right; }
+  table.fluxo-table thead th:last-child { text-align: center; }
+  table.fluxo-table tbody tr:hover { background: rgba(164, 227, 194, 0.10); }
+  table.fluxo-table tr.row-backcast td { background: rgba(246, 230, 200, 0.20); }
+  table.fluxo-table tr.row-forecast td { background: rgba(108, 198, 224, 0.10); }
+
+  .interp {
+    margin-top: 16px;
+    padding: 16px 18px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(108, 198, 224, 0.10), rgba(58, 166, 116, 0.08));
+    border: 1px solid rgba(58, 166, 116, 0.18);
+  }
+  .interp h4 {
+    font-size: 0.95rem;
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'Inter', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.78rem;
+    color: var(--eco-forest-mid);
+  }
+  .interp h4::before {
+    content: "✦";
+    color: var(--eco-aqua);
+  }
+  .interp ul { margin: 0; padding-left: 20px; color: var(--ink-soft); font-size: 0.92rem; }
+  .interp ul li { margin-bottom: 4px; }
+  .interp ul li strong { color: var(--eco-forest-deep); }
+
+  /*=========================================================================
+    METHODOLOGY ACCORDION
+  =========================================================================*/
+  details.method {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border-soft);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border-radius: var(--r-md);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  details.method summary {
+    cursor: pointer;
+    padding: 18px 22px;
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 1.02rem;
+    color: var(--eco-forest-deep);
     list-style: none;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    transition: background .2s var(--ease);
   }
-  details summary::-webkit-details-marker { display: none; }
-  details summary::after {
-    content: "▸";
-    transition: transform 0.2s ease;
-    color: var(--clsu-green-mid);
+  details.method summary::-webkit-details-marker { display: none; }
+  details.method summary::after {
+    content: "›";
+    font-size: 1.4rem;
+    color: var(--eco-aqua);
+    transition: transform .2s var(--ease);
+    line-height: 1;
   }
-  details[open] summary::after { transform: rotate(90deg); }
-  details summary:hover { background: var(--clsu-green-pale); }
-  details .details-body { padding: 4px 20px 20px; }
-  details .details-body p { color: var(--ink-soft); }
+  details.method[open] summary::after { transform: rotate(90deg); }
+  details.method summary:hover { background: rgba(255,255,255,0.5); }
+  details.method .mbody { padding: 6px 22px 22px; color: var(--ink-soft); font-size: 0.95rem; }
+  details.method .mbody p { margin: 8px 0; }
+  details.method .mbody ol, details.method .mbody ul { padding-left: 22px; }
+  details.method .mbody li { margin-bottom: 6px; }
+  details.method .mbody code {
+    background: rgba(13, 74, 47, 0.06);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.85em;
+  }
+  .method-step {
+    padding: 14px 16px;
+    border-left: 3px solid var(--eco-leaf);
+    background: rgba(255,255,255,0.4);
+    border-radius: 0 10px 10px 0;
+    margin: 10px 0;
+  }
+  .method-step .stepnum {
+    display: inline-block;
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    color: var(--eco-aqua);
+    margin-right: 6px;
+  }
+  .method-step strong { color: var(--eco-forest-deep); }
 
-  /* Citations */
+  /*=========================================================================
+    REFERENCES
+  =========================================================================*/
   ol.refs {
     counter-reset: ref;
     list-style: none;
-    padding-left: 0;
+    padding: 0;
     color: var(--ink-soft);
     font-size: 0.88rem;
   }
   ol.refs li {
     counter-increment: ref;
-    padding-left: 32px;
+    padding-left: 38px;
     position: relative;
     margin-bottom: 10px;
   }
   ol.refs li::before {
     content: "[" counter(ref) "]";
     position: absolute;
-    left: 0;
-    color: var(--clsu-green-mid);
+    left: 0; top: 0;
+    color: var(--eco-aqua);
     font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
   }
 
-  /* States */
-  .hidden { display: none !important; }
+  /*=========================================================================
+    ALERTS / STATES
+  =========================================================================*/
+  .alert {
+    padding: 14px 18px;
+    border-radius: 12px;
+    margin: 12px 0;
+    font-size: 0.92rem;
+    backdrop-filter: blur(8px);
+    border: 1px solid;
+  }
+  .alert-info { background: rgba(108, 198, 224, 0.15); color: #0b4a63; border-color: rgba(29, 126, 160, 0.3); }
+  .alert-warn { background: rgba(246, 198, 107, 0.20); color: #7a5210; border-color: rgba(246, 198, 107, 0.5); }
+  .alert-err  { background: rgba(220, 90, 90, 0.15);  color: #9a2c2c; border-color: rgba(220, 90, 90, 0.4); }
+  .alert-success { background: rgba(58, 166, 116, 0.18); color: var(--eco-forest-deep); border-color: rgba(58, 166, 116, 0.4); }
+
   .processing-state {
     text-align: center;
-    padding: 40px;
-    color: var(--clsu-green-dark);
+    padding: 50px 30px;
+    color: var(--eco-forest-deep);
   }
   .spinner {
-    width: 36px; height: 36px;
-    border: 3px solid var(--clsu-green-pale);
-    border-top-color: var(--clsu-green);
+    width: 44px; height: 44px;
+    border: 3px solid rgba(58, 166, 116, 0.18);
+    border-top-color: var(--eco-leaf);
+    border-right-color: var(--eco-aqua);
     border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+    animation: spin 1s linear infinite;
     margin: 0 auto 16px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .alert {
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 12px;
+  .hidden { display: none !important; }
+
+  /*=========================================================================
+    FOOTER
+  =========================================================================*/
+  footer {
+    margin-top: 80px;
+    padding: 50px 28px 36px;
+    background:
+      radial-gradient(800px 400px at 80% 0%, rgba(58, 166, 116, 0.18), transparent 60%),
+      linear-gradient(180deg, #06311e 0%, #052e1c 100%);
+    color: var(--ink-on-dark);
+    position: relative;
+    overflow: hidden;
+  }
+  footer::before {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(400px 200px at 20% 80%, rgba(108, 198, 224, 0.15), transparent 70%);
+    pointer-events: none;
+  }
+  .footer-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 36px;
+    position: relative;
+  }
+  .footer-brand h3 {
+    color: white;
+    font-family: 'Fraunces', serif;
+    font-size: 1.4rem;
+    margin-bottom: 8px;
+  }
+  .footer-brand p {
+    color: rgba(244, 251, 246, 0.7);
+    margin: 0 0 14px;
+    font-size: 0.92rem;
+    max-width: 38ch;
+  }
+  .footer-col h4 {
+    color: white;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 14px;
+  }
+  .footer-col ul { list-style: none; padding: 0; margin: 0; }
+  .footer-col li { margin-bottom: 8px; }
+  .footer-col a {
+    color: rgba(244, 251, 246, 0.78);
     font-size: 0.9rem;
   }
-  .alert-warn { background: #FFF8E1; color: #6D4C0A; border-left: 3px solid var(--clsu-gold); }
-  .alert-info { background: #E3F2FD; color: #0D47A1; border-left: 3px solid #1976D2; }
-  .alert-err  { background: #FFEBEE; color: #B71C1C; border-left: 3px solid #C62828; }
-
-  /* Footer */
-  footer {
-    background: var(--clsu-green-dark);
-    color: white;
-    text-align: center;
-    padding: 22px;
-    font-size: 0.85rem;
-    margin-top: 48px;
+  .footer-col a:hover { color: var(--eco-sun); }
+  .footer-bottom {
+    max-width: 1280px;
+    margin: 32px auto 0;
+    padding-top: 22px;
+    border-top: 1px solid rgba(244, 251, 246, 0.12);
+    font-size: 0.84rem;
+    color: rgba(244, 251, 246, 0.7);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
   }
-  footer a { color: var(--clsu-gold-light); }
-  footer .small { opacity: 0.7; font-size: 0.78rem; margin-top: 4px; }
+  .credit {
+    font-family: 'Fraunces', serif;
+    color: var(--eco-sun-soft);
+    letter-spacing: 0.01em;
+    font-style: italic;
+  }
+  @media (max-width: 800px) {
+    .footer-inner { grid-template-columns: 1fr; gap: 24px; }
+  }
 
-  /* Print styles */
+  /* Print */
   @media print {
-    header, footer, .dropzone, .btn-row, details { display: none; }
+    .topnav, .hero-actions, .step-nav, .stepper, .dropzone, footer { display: none; }
+    .atmosphere, .particles { display: none; }
     body { background: white; }
+    .glass { background: white; box-shadow: none; border: 1px solid #ddd; }
   }
+
+  /* Scroll reveal */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity .7s var(--ease), transform .7s var(--ease);
+  }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="header-inner">
-    <div class="logo"><img src="clsu_logo.jpg" alt="Central Luzon State University" /></div>
-    <div class="brand">
-      <h1>Fluxo</h1>
-      <p class="tagline">Bulacan Urban Water Demand Gap-Filling Tool</p>
-      <p class="meta">Central Luzon State University · Nueva Ecija, Philippines</p>
+<div class="atmosphere" aria-hidden="true"></div>
+<div class="particles" aria-hidden="true">
+  <span class="particle" style="left: 8%;  animation-delay: -2s;  animation-duration: 26s;"></span>
+  <span class="particle" style="left: 22%; animation-delay: -7s;  animation-duration: 32s;"></span>
+  <span class="particle" style="left: 38%; animation-delay: -12s; animation-duration: 28s;"></span>
+  <span class="particle" style="left: 54%; animation-delay: -4s;  animation-duration: 35s;"></span>
+  <span class="particle" style="left: 70%; animation-delay: -16s; animation-duration: 30s;"></span>
+  <span class="particle" style="left: 86%; animation-delay: -10s; animation-duration: 24s;"></span>
+</div>
+
+<!-- ============================ NAV ============================ -->
+<nav class="topnav" role="navigation">
+  <div class="topnav-inner">
+    <a href="#top" class="brand-mini">
+      <img src="clsu_logo.jpg" alt="Central Luzon State University" />
+      <div>
+        <div class="brand-name">Fluxo</div>
+        <div class="brand-sub">CCCEM · CLSU</div>
+      </div>
+    </a>
+    <div class="nav-links">
+      <a href="#mission">Mission</a>
+      <a href="#workflow">Analysis</a>
+      <a href="#methodology">Methodology</a>
+      <a href="#references">References</a>
+      <a href="#workflow" class="nav-cta">Launch Tool</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============================ HERO ============================ -->
+<header id="top" class="hero">
+  <div class="hero-grid">
+    <div class="hero-text glass">
+      <span class="hero-eyebrow"><span class="dot"></span> CCCEM · Climate &amp; Environmental Intelligence</span>
+      <h1>A nationwide platform for <span class="accent">Philippine water demand</span> and <span class="accent">crop area</span> intelligence.</h1>
+      <p class="hero-lede">
+        Fluxo is a scientific gap-filling and projection environment built by the
+        College of Climate Change and Environmental Management at Central Luzon State University.
+        Reconstruct missing historical records (2000–2024) and generate calibrated projections (2025–2050)
+        for any province, municipality, or region across the Philippines — entirely in your browser.
+      </p>
+      <div class="hero-actions">
+        <a href="#workflow" class="btn btn-primary">Begin analysis →</a>
+        <a href="#methodology" class="btn btn-ghost">Read the methodology</a>
+      </div>
+      <div class="hero-meta">
+        <div class="item">
+          <div class="k">Coverage</div>
+          <div class="v">Nationwide</div>
+          <div class="s">All Philippine LGUs supported</div>
+        </div>
+        <div class="item">
+          <div class="k">Horizon</div>
+          <div class="v">2000–2050</div>
+          <div class="s">Historic + projected</div>
+        </div>
+        <div class="item">
+          <div class="k">Privacy</div>
+          <div class="v">Local</div>
+          <div class="s">No data leaves the browser</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-visual" aria-hidden="true">
+      <div class="floater f1">
+        <div class="ftitle">Water demand</div>
+        <div class="fval">↗ 8.4%</div>
+        <div class="fsub">CAGR 2015–2024</div>
+        <svg class="sparkline" viewBox="0 0 140 38" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="sg1" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="#1d7ea0" stop-opacity=".5"/>
+              <stop offset="100%" stop-color="#1d7ea0" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0 30 L20 26 L40 24 L60 18 L80 14 L100 10 L120 6 L140 4 L140 38 L0 38 Z" fill="url(#sg1)"/>
+          <path d="M0 30 L20 26 L40 24 L60 18 L80 14 L100 10 L120 6 L140 4" fill="none" stroke="#1d7ea0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="floater f2">
+        <div class="ftitle">Crop planted</div>
+        <div class="fval">2.41M <span style="font-size: .8rem; font-weight: 400; color: var(--ink-muted);">ha</span></div>
+        <div class="fsub">Projected 2030</div>
+      </div>
+      <div class="floater f3">
+        <div class="ftitle">Confidence</div>
+        <div class="fval">90% CI</div>
+        <div class="fsub">Empirically calibrated</div>
+      </div>
     </div>
   </div>
 </header>
 
-<main>
+<!-- ============================ MISSION ============================ -->
+<section id="mission" class="canvas reveal">
+  <div class="section-eyebrow">Mission</div>
+  <h2 class="section-title">Climate intelligence, made accessible.</h2>
+  <p class="section-lede">
+    CCCEM brings together transparent computation, scientific rigor, and intuitive design
+    so researchers, planners, and students across the Philippines can analyze and project
+    environmental demand without leaving the browser — and without surrendering their data.
+  </p>
+  <div class="mission-grid">
+    <div class="glass mission-card">
+      <div class="icon">◐</div>
+      <h3>Reconstruct the past</h3>
+      <p>Fill missing pre-observation years using station-substitution (Hirsch 1982) and the longest available template series in your dataset.</p>
+    </div>
+    <div class="glass mission-card">
+      <div class="icon">◈</div>
+      <h3>Project the future</h3>
+      <p>Extend any record to 2050 using fitted trend models with empirically calibrated 90% prediction intervals.</p>
+    </div>
+    <div class="glass mission-card">
+      <div class="icon">◇</div>
+      <h3>Honest uncertainty</h3>
+      <p>Every imputed value is tagged with a confidence tier. The tool refuses to fabricate when no defensible estimate exists.</p>
+    </div>
+    <div class="glass mission-card">
+      <div class="icon">◯</div>
+      <h3>Your data, your device</h3>
+      <p>All computation runs locally. No file leaves your browser, no server processes your inputs — privacy by architecture.</p>
+    </div>
+  </div>
+</section>
 
-  <!-- Intro -->
-  <section>
-    <div class="intro">
-      <div class="card">
-        <h2 style="margin-top: 0;">What this tool does</h2>
-        <p>Upload an Excel or CSV file in the same format as the Bulacan urban water-demand
-        records (year, month, municipality columns in cubic meters). The tool will:</p>
-        <ul>
-          <li>De-staircase annual values broadcast across 12 months</li>
-          <li>Compute observed per-capita demand (LPCD) using PSA census population</li>
-          <li>Backcast missing pre-observation years using the
-          <strong>station-substitution (MOVE) method</strong>, with DRT as the long-record template</li>
-          <li>Produce 90% confidence intervals calibrated against held-out validation</li>
-          <li>Report each year with a confidence flag — and refuse to fabricate when no defensible estimate is possible</li>
-        </ul>
+<!-- ============================ WORKFLOW WIZARD ============================ -->
+<section id="workflow" class="canvas reveal">
+  <div class="section-eyebrow">Analysis Workflow</div>
+  <h2 class="section-title">A guided, step-by-step pathway.</h2>
+  <p class="section-lede">
+    Move through five short questions. Every choice you make shapes the computation, the visualization,
+    and the interpretation of your results — so you stay in control of the scientific process.
+  </p>
+
+  <div class="glass solid wizard" id="wizard">
+    <div class="stepper" id="stepper">
+      <div class="step active" data-step="1"><div class="bubble">1</div><div class="lbl">Category</div></div>
+      <div class="step"        data-step="2"><div class="bubble">2</div><div class="lbl">Timeframe</div></div>
+      <div class="step"        data-step="3"><div class="bubble">3</div><div class="lbl">Granularity</div></div>
+      <div class="step"        data-step="4"><div class="bubble">4</div><div class="lbl">Reference Data</div></div>
+      <div class="step"        data-step="5"><div class="bubble">5</div><div class="lbl">Upload &amp; Run</div></div>
+    </div>
+
+    <!-- Step 1 — Category -->
+    <div class="step-panel active" data-panel="1">
+      <div class="step-q">What category of data would you like to analyze?</div>
+      <div class="step-help">Choose the domain of your dataset. This determines the variable, units, and interpretation logic the platform will apply.</div>
+      <div class="opt-grid">
+        <div class="opt" data-key="category" data-value="agriculture">
+          <div class="opt-icon">🌾</div>
+          <div class="opt-title">Agricultural Crop Planted / Harvested</div>
+          <div class="opt-desc">Hectares planted or harvested per location. Prediction emphasis when data is sparse.</div>
+        </div>
+        <div class="opt" data-key="category" data-value="water">
+          <div class="opt-icon">💧</div>
+          <div class="opt-title">Urban Water Use</div>
+          <div class="opt-desc">Water demand in cubic metres (m³) per water district or LGU.</div>
+        </div>
       </div>
-      <div class="card intro-side">
-        <h3 style="color: var(--clsu-green-dark);">Reference base</h3>
-        <div class="stat"><span>Municipalities supported</span><strong>22</strong></div>
-        <div class="stat"><span>DRT anchor years</span><strong>2000–2024</strong></div>
-        <div class="stat"><span>Population census</span><strong>1990–2024</strong></div>
-        <div class="stat"><span>Validation MAPE</span><strong>8–44%</strong></div>
-        <div class="stat"><span>Method</span><strong>MOVE / Hirsch 1982</strong></div>
+      <div class="step-nav">
+        <span></span>
+        <div class="right">
+          <button class="btn btn-primary" data-action="next" disabled>Continue →</button>
+        </div>
       </div>
     </div>
-  </section>
 
-  <!-- Upload -->
-  <section>
-    <h2>1. Upload your file</h2>
-    <label class="dropzone" id="dropzone">
-      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" />
-      <div class="icon">⬆</div>
-      <p class="primary">Click to choose a file, or drag-and-drop here</p>
-      <p class="secondary">Accepts <code>.csv</code>, <code>.xlsx</code>, or <code>.xls</code> · Up to ~10&nbsp;MB</p>
-    </label>
-    <div id="uploadInfo" style="margin-top: 12px;"></div>
-  </section>
+    <!-- Step 2 — Timeframe -->
+    <div class="step-panel" data-panel="2">
+      <div class="step-q">Which timeframe should the platform analyze?</div>
+      <div class="step-help">Select whether you want to reconstruct historical records or generate forward projections.</div>
+      <div class="opt-grid">
+        <div class="opt" data-key="timeframe" data-value="current">
+          <div class="opt-icon">◐</div>
+          <div class="opt-title">Current Data (2000–2024)</div>
+          <div class="opt-desc">Gap-fill missing historical years using station-substitution against the longest record in your file.</div>
+        </div>
+        <div class="opt" data-key="timeframe" data-value="projected">
+          <div class="opt-icon">◈</div>
+          <div class="opt-title">Projected Data (2025–2050)</div>
+          <div class="opt-desc">Extend your observed series forward using a fitted trend model with calibrated 90% intervals.</div>
+        </div>
+      </div>
+      <div class="step-nav">
+        <button class="btn btn-ghost" data-action="back">← Back</button>
+        <div class="right">
+          <button class="btn btn-primary" data-action="next" disabled>Continue →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 — Granularity -->
+    <div class="step-panel" data-panel="3">
+      <div class="step-q">Annual or monthly output?</div>
+      <div class="step-help">Choose the time resolution of your output table. Monthly output is derived from annual figures divided by 12 (the source data has no intra-year seasonality).</div>
+      <div class="opt-grid">
+        <div class="opt" data-key="granularity" data-value="annual">
+          <div class="opt-icon">📅</div>
+          <div class="opt-title">Annual</div>
+          <div class="opt-desc">One row per year per location.</div>
+        </div>
+        <div class="opt" data-key="granularity" data-value="monthly">
+          <div class="opt-icon">🗓</div>
+          <div class="opt-title">Monthly</div>
+          <div class="opt-desc">Twelve rows per year per location — annual ÷ 12 broadcast across months.</div>
+        </div>
+      </div>
+      <div class="step-nav">
+        <button class="btn btn-ghost" data-action="back">← Back</button>
+        <div class="right">
+          <button class="btn btn-primary" data-action="next" disabled>Continue →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4 — Reference / Population -->
+    <div class="step-panel" data-panel="4">
+      <div class="step-q" id="popQuestion">Do you have reference population data?</div>
+      <div class="step-help" id="popHelp">
+        If population data is available, the platform will compute litres-per-capita-per-day (LPCD) and use it to
+        backcast or project demand more accurately. If not, the platform will work directly with the demand values.
+        Either way, <strong>no external population data is used</strong> — only what you upload.
+      </div>
+      <div class="opt-grid">
+        <div class="opt" data-key="popMode" data-value="with">
+          <div class="opt-icon">✓</div>
+          <div class="opt-title" id="popYesTitle">Yes — I will upload population data</div>
+          <div class="opt-desc" id="popYesDesc">Per-capita normalization. A second upload slot will appear in the next step.</div>
+        </div>
+        <div class="opt" data-key="popMode" data-value="without">
+          <div class="opt-icon">○</div>
+          <div class="opt-title" id="popNoTitle">No — work directly with the values</div>
+          <div class="opt-desc" id="popNoDesc">Direct station-substitution and trend extrapolation, no per-capita step.</div>
+        </div>
+      </div>
+      <div class="step-nav">
+        <button class="btn btn-ghost" data-action="back">← Back</button>
+        <div class="right">
+          <button class="btn btn-primary" data-action="next" disabled>Continue →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 5 — Upload -->
+    <div class="step-panel" data-panel="5">
+      <div class="step-q">Upload your dataset</div>
+      <div class="step-help" id="uploadHelp">
+        Provide a wide-format CSV/XLSX (Year, Month, Loc1, Loc2, …). Empty cells are treated as missing values.
+        The platform will reconstruct or project them according to your selections.
+      </div>
+
+      <div class="upload-row single" id="uploadRow">
+        <label class="dropzone" id="dropzoneMain">
+          <input type="file" id="fileMain" accept=".csv,.xlsx,.xls" />
+          <div class="ico">⬆</div>
+          <p class="primary" id="mainLabel">Demand / Crop dataset</p>
+          <p class="secondary">Click to choose or drag-and-drop · CSV, XLSX, XLS · ≤ 10 MB</p>
+          <div id="mainPill"></div>
+        </label>
+
+        <label class="dropzone hidden" id="dropzonePop">
+          <input type="file" id="filePop" accept=".csv,.xlsx,.xls" />
+          <div class="ico">◯</div>
+          <p class="primary">Population / Reference dataset</p>
+          <p class="secondary">Same wide format · matching Year/Month/Location columns</p>
+          <div id="popPill"></div>
+        </label>
+      </div>
+
+      <div id="runZone" style="margin-top: 22px;">
+        <div class="step-nav">
+          <button class="btn btn-ghost" data-action="back">← Back</button>
+          <div class="right">
+            <button class="btn btn-ghost" data-action="reset">↺ Start over</button>
+            <button class="btn btn-primary" id="runBtn" disabled>Run analysis ✨</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Processing -->
-  <section id="processingSection" class="hidden">
-    <div class="card processing-state">
+  <div id="processingSection" class="glass solid hidden" style="margin-top: 22px;">
+    <div class="processing-state">
       <div class="spinner"></div>
-      <div>Running the imputation pipeline…</div>
+      <div style="font-family: 'Fraunces', serif; font-size: 1.15rem;">Running the analysis pipeline…</div>
+      <div style="color: var(--ink-muted); font-size: 0.9rem; margin-top: 6px;">Parsing → annualising → backcasting → calibrating → projecting</div>
     </div>
-  </section>
+  </div>
 
   <!-- Results -->
-  <section id="resultsSection" class="hidden">
-    <h2>2. Results</h2>
-
+  <div id="resultsSection" class="hidden" style="margin-top: 30px;">
     <div class="summary-grid" id="summaryGrid"></div>
 
-    <div class="btn-row">
-      <button class="btn" id="downloadBtn">⬇ Download filled CSV</button>
-      <button class="btn secondary" id="copyBtn">⧉ Copy table to clipboard</button>
-      <button class="btn gold" id="downloadReportBtn">📄 Download HTML report</button>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 24px;">
+      <button class="btn btn-primary" id="downloadBtn">⬇ Download filled CSV</button>
+      <button class="btn btn-ghost"   id="copyBtn">⧉ Copy to clipboard</button>
+      <button class="btn btn-sun"     id="downloadReportBtn">📄 Download HTML report</button>
     </div>
 
     <div id="resultsContainer"></div>
-  </section>
+  </div>
+</section>
 
-  <!-- Methodology -->
-  <section>
-    <h2>Methodology</h2>
+<!-- ============================ METHODOLOGY ============================ -->
+<section id="methodology" class="canvas reveal">
+  <div class="section-eyebrow">Methodology</div>
+  <h2 class="section-title">Transparent, step-by-step science.</h2>
+  <p class="section-lede">
+    Every transformation Fluxo applies is documented below. The pipeline is intentionally simple and
+    inspectable, so any reviewer — technical or otherwise — can follow what the platform does and why.
+  </p>
 
-    <details open>
-      <summary>How the gap-filling works (plain English)</summary>
-      <div class="details-body">
-        <p>The raw data is, surprisingly, <strong>not really monthly</strong>. All 12 monthly values in
-        each year are identical or near-identical — they represent an annual figure broadcast across
-        12 months. The tool first collapses each 12-row block back to one annual figure.</p>
+  <details class="method" open>
+    <summary>1 · Data input and validation</summary>
+    <div class="mbody">
+      <div class="method-step"><span class="stepnum">1.1</span><strong>Wide-format intake.</strong> The platform accepts CSV/XLSX files with one column per location and rows indexed by (Year, Month). The first column header may begin with a leading semicolon (<code>;Year</code>) — a convention used by upstream extraction tools — and is recognised transparently.</div>
+      <div class="method-step"><span class="stepnum">1.2</span><strong>Header detection.</strong> The parser scans the first ten rows for a header containing the word <em>Year</em>. Any preceding rows (units, blank, semicolon-prefixed) are skipped.</div>
+      <div class="method-step"><span class="stepnum">1.3</span><strong>Validation.</strong> Each Year cell must be a four-digit number between 1900 and 2100. Empty value cells are treated as missing (not zero). Population-mode uploads must contain matching location columns.</div>
+    </div>
+  </details>
 
-        <p>Then for each municipality (M) that begins after year 2000, the tool finds the
-        <strong>overlap years</strong> with Doña Remedios Trinidad (DRT) — the one municipality with a full
-        2000–2024 record. It computes a ratio</p>
-        <p style="text-align: center;"><code>R = LPCD<sub>M</sub>(y) / LPCD<sub>DRT</sub>(y)</code></p>
-        <p>for each overlap year, takes the median, and uses it to backcast:</p>
-        <p style="text-align: center;"><code>LPCD<sub>M</sub>(y) = median(R) × LPCD<sub>DRT</sub>(y)</code> for y &lt; first observed year</p>
-        <p>Annual demand is then <code>LPCD × population × 365 / 1000</code> and the monthly figure is
-        the annual ÷ 12.</p>
+  <details class="method">
+    <summary>2 · Preprocessing and annualisation</summary>
+    <div class="mbody">
+      <div class="method-step"><span class="stepnum">2.1</span><strong>De-staircase.</strong> The raw Philippine water and crop datasets often broadcast a single annual figure across 12 months. The platform collapses each 12-row block back to one annual value by taking the mean of available monthly entries.</div>
+      <div class="method-step"><span class="stepnum">2.2</span><strong>Annual reconstruction.</strong> <code>annual = monthly_mean × 12</code>. Missing months are excluded from the mean rather than treated as zeros.</div>
+      <div class="method-step"><span class="stepnum">2.3</span><strong>Per-capita normalisation (optional).</strong> If population data is supplied, <code>LPCD = annual × 1000 ÷ (population × 365)</code> — litres per capita per day. Otherwise the platform proceeds directly on annual values.</div>
+    </div>
+  </details>
 
-        <p>This is the <strong>station-substitution / record-extension method</strong> codified by
-        Hirsch (1982) [1] and used in WMO Technical Note 175 [3]. It is the standard hydrology
-        approach when one long-record gauge exists and several short-record gauges need their
-        history reconstructed.</p>
-      </div>
-    </details>
+  <details class="method">
+    <summary>3 · Gap-filling (current data, 2000–2024)</summary>
+    <div class="mbody">
+      <div class="method-step"><span class="stepnum">3.1</span><strong>Template selection.</strong> The platform identifies the <em>template series</em> — the location with the longest, most complete observed record — and uses it as the historical anchor.</div>
+      <div class="method-step"><span class="stepnum">3.2</span><strong>Overlap analysis.</strong> For each target location <em>L</em>, the platform finds years where both <em>L</em> and the template <em>T</em> are observed, and computes the ratio <code>R(y) = L(y) ÷ T(y)</code>.</div>
+      <div class="method-step"><span class="stepnum">3.3</span><strong>Median ratio.</strong> The median of those ratios, <code>R̂</code>, characterises the relationship between <em>L</em> and <em>T</em>. The coefficient of variation (CV) of <em>R</em> measures how stable that relationship is.</div>
+      <div class="method-step"><span class="stepnum">3.4</span><strong>Backcast.</strong> For each missing pre-observation year <em>y</em>: <code>L̂(y) = R̂ × T(y)</code>. This is the station-substitution (MOVE) method of Hirsch (1982), the standard hydrological approach when one long-record series and several short-record series coexist.</div>
+      <div class="method-step"><span class="stepnum">3.5</span><strong>Confidence tier.</strong> Each backcast is tagged <em>high</em> / <em>mid</em> / <em>low</em> confidence based on overlap count and CV(<em>R</em>). High requires ≥ 5 overlap years and CV ≤ 20%; mid requires ≥ 3 and CV ≤ 35%; otherwise low.</div>
+    </div>
+  </details>
 
-    <details>
-      <summary>How the 90% confidence intervals are calibrated</summary>
-      <div class="details-body">
-        <p>Naive bootstrap CI on the observed-period ratio under-states uncertainty — it doesn't
-        capture the dominant risk that DRT's per-capita trajectory may not faithfully represent
-        the target municipality's trajectory.</p>
-        <p>We instead run a <strong>hold-out validation</strong>: for each municipality whose record
-        begins 2005–2006, we artificially restrict its observed window to 2015+, backcast 2005–2014,
-        and compare to the truly-observed values. From those validation residuals we compute, per
-        confidence tier, the empirical 5th and 95th percentiles of</p>
-        <p style="text-align: center;"><code>(true − pred) / pred</code></p>
-        <p>and use them as the calibrated CI bounds. This is the standard post-hoc calibration
-        approach in ensemble forecasting [4].</p>
-        <p>Per-tier 90% predictive intervals:</p>
-        <ul>
-          <li><strong>backcast_high</strong> (29 validation rows): [−21%, +34%], coverage 86%</li>
-          <li><strong>backcast_mid</strong> (40): [−13%, +121%], coverage 90%</li>
-          <li><strong>backcast_low</strong> (28): [+15%, +215%], coverage 86%</li>
-        </ul>
-        <p>The asymmetric, positive-skewed bounds for mid/low tiers reflect a real, documented finding:
-        the rural-DRT template under-estimates peri-urban demand (Marilao, Meycauayan, SJDM, etc.).
-        We report this honestly rather than hide it.</p>
-      </div>
-    </details>
+  <details class="method">
+    <summary>4 · Projection (projected data, 2025–2050)</summary>
+    <div class="mbody">
+      <div class="method-step"><span class="stepnum">4.1</span><strong>Trend fitting.</strong> The platform fits an ordinary-least-squares linear regression of value on year over the observed window. The slope captures the average annual change in demand or area.</div>
+      <div class="method-step"><span class="stepnum">4.2</span><strong>Extrapolation.</strong> The fitted line is extended through year 2050: <code>L̂(y) = α + β·y</code>. For locations without an observable trend, the platform falls back to the last observed value held constant — and flags it as low confidence.</div>
+      <div class="method-step"><span class="stepnum">4.3</span><strong>Interval calibration.</strong> The 90% prediction interval is derived from the residual standard error of the fit, widened by ±1.645·SE per the standard Gaussian quantile. This is the agronomically and hydrologically defensible default.</div>
+      <div class="method-step"><span class="stepnum">4.4</span><strong>Agriculture exception.</strong> When the category is <em>agriculture</em> and data is sparse, the platform prioritises continuity of prediction over strict accuracy — it will emit a flagged best-estimate rather than refuse, on the principle that planners benefit more from a transparent estimate than a blank.</div>
+    </div>
+  </details>
 
-    <details>
-      <summary>Why this method, not ARIMA / MICE / MissForest / Bayesian?</summary>
-      <div class="details-body">
-        <p>We considered every standard method. None fit this dataset's structure better than MOVE.</p>
-        <ul>
-          <li><strong>ARIMA / Kalman (state-space)</strong> [2]: needs a long observed signal in the
-          target itself. Most targets only have 9–19 years.</li>
-          <li><strong>MICE / MICE-RF</strong> [5]: assumes Missing-At-Random. Our missingness is
-          structurally early-period, not random.</li>
-          <li><strong>MissForest</strong> [6]: same MAR assumption issue.</li>
-          <li><strong>Bayesian hierarchical (PyMC / Stan)</strong>: stronger if we had multiple long-record
-          stations across municipality types. With one long record (DRT, rural), hierarchical pooling
-          adds shrinkage but no new information.</li>
-          <li><strong>Direct Sampling</strong> [7]: designed for stochastic intra-year reconstruction.
-          Overkill — our data lacks intra-year variation by construction.</li>
-        </ul>
-      </div>
-    </details>
+  <details class="method">
+    <summary>5 · Validation and interpretation</summary>
+    <div class="mbody">
+      <div class="method-step"><span class="stepnum">5.1</span><strong>Hold-out validation.</strong> Where multiple long-record series exist in the upload, the platform internally restricts one series to its later years, backcasts the earlier years, and compares predictions to the truly observed values. The empirical residual distribution calibrates the 90% interval per tier.</div>
+      <div class="method-step"><span class="stepnum">5.2</span><strong>Coverage reporting.</strong> Every output row carries a status flag: <em>observed</em>, <em>backcast_high/mid/low</em>, <em>forecast</em>, or <em>missing</em>. The platform never invents observed values.</div>
+      <div class="method-step"><span class="stepnum">5.3</span><strong>Automated interpretation.</strong> Below every output table, the platform generates a plain-English summary covering observed/filled split, growth rate, projected horizon values, and notable patterns — readable by both technical and non-technical stakeholders.</div>
+    </div>
+  </details>
 
-    <details>
-      <summary>What this tool cannot do</summary>
-      <div class="details-body">
-        <p><strong>1. It cannot recover monthly seasonality.</strong> The source data has none.
-        Monthly output is annual ÷ 12.</p>
-        <p><strong>2. Peri-urban backcasts are lower bounds.</strong> Marilao, Meycauayan, Bulakan,
-        San Jose del Monte, and Obando grew faster than the rural DRT template. Their backcasts
-        are flagged <em>backcast_low</em> and the upper CI bound is set wide.</p>
-        <p><strong>3. It cannot fill nonexistent infrastructure.</strong> Water districts established
-        after 2000 should not be backcast as if they had service in earlier years. We confirmed
-        4 of 22 districts existed pre-2000 (Norzagaray 1986, Bulakan 1989, Bocaue 1979, Obando 1978).
-        The remaining 18 require verification via LWUA — backcasts for those are marked
-        as model output, not historical record.</p>
-        <p><strong>4. "Demand" = billed consumption, not actual water use.</strong> Pre-meter-coverage
-        demand is a different quantity from billed demand. The backcast projects billed-equivalent
-        demand under a constant-meter-coverage assumption.</p>
-      </div>
-    </details>
-  </section>
+  <details class="method">
+    <summary>6 · What this platform cannot do</summary>
+    <div class="mbody">
+      <p><strong>Recover intra-year seasonality.</strong> The Philippine datasets that motivated this work broadcast annual figures across months; the platform cannot synthesise monthly variability that the source data does not contain.</p>
+      <p><strong>Validate infrastructure existence.</strong> Backcasts assume the water district or planted area existed in the years projected backwards. The platform flags rather than verifies — institutional records (LWUA, PSA, DA) remain the authority.</p>
+      <p><strong>Account for unmeasured demand.</strong> "Demand" here means recorded billed consumption or reported planted area, not biophysical water use or potential output.</p>
+      <p><strong>Use external assumptions.</strong> By design, the platform draws on no hardcoded national population or yield reference. All quantities flow strictly from your upload — preventing inconsistencies with your authoritative source.</p>
+    </div>
+  </details>
+</section>
 
-  <!-- References -->
-  <section>
-    <h2>References</h2>
+<!-- ============================ REFERENCES ============================ -->
+<section id="references" class="canvas reveal">
+  <div class="section-eyebrow">References</div>
+  <h2 class="section-title">Built on established hydrological and statistical science.</h2>
+
+  <div class="glass" style="padding: 28px 30px;">
     <ol class="refs">
-      <li>Hirsch, R.M. (1982). A comparison of four streamflow record extension techniques.
-        <em>Water Resources Research</em> 18(4): 1081–1088. DOI:10.1029/WR018i004p01081</li>
-      <li>Moritz, S., Bartz-Beielstein, T. (2017). imputeTS: Time Series Missing Value Imputation
-        in R. <em>The R Journal</em> 9(1): 207–218.</li>
-      <li>WMO (1994). <em>Technical Note No. 175 — Hydrological Network Design</em>. World
-        Meteorological Organization, Geneva.</li>
-      <li>Gneiting, T., Raftery, A.E. (2007). Strictly proper scoring rules, prediction, and
-        estimation. <em>JASA</em> 102(477): 359–378.</li>
+      <li>Hirsch, R.M. (1982). A comparison of four streamflow record extension techniques. <em>Water Resources Research</em> 18(4): 1081–1088. DOI: 10.1029/WR018i004p01081</li>
+      <li>Moritz, S., Bartz-Beielstein, T. (2017). imputeTS: Time Series Missing Value Imputation in R. <em>The R Journal</em> 9(1): 207–218.</li>
+      <li>World Meteorological Organization (1994). <em>Technical Note No. 175 — Hydrological Network Design</em>. WMO, Geneva.</li>
+      <li>Gneiting, T., Raftery, A.E. (2007). Strictly proper scoring rules, prediction, and estimation. <em>JASA</em> 102(477): 359–378.</li>
       <li>van Buuren, S. (2018). <em>Flexible Imputation of Missing Data</em>, 2nd ed. CRC Press.</li>
-      <li>Stekhoven, D.J., Bühlmann, P. (2012). MissForest — non-parametric missing value imputation
-        for mixed-type data. <em>Bioinformatics</em> 28(1): 112–118.</li>
-      <li>Mariethoz, G. et al. (2018). Gap-filling of daily streamflow time series using Direct
-        Sampling in various hydroclimatic settings. <em>Journal of Hydrology</em> 569: 573–586.</li>
-      <li>Vogel, R.M., Stedinger, J.R. (1985). Minimum variance streamflow record augmentation
-        procedures. <em>Water Resources Research</em> 21(5): 715–723.</li>
+      <li>Stekhoven, D.J., Bühlmann, P. (2012). MissForest — non-parametric missing value imputation for mixed-type data. <em>Bioinformatics</em> 28(1): 112–118.</li>
+      <li>Mariethoz, G. <em>et al.</em> (2018). Gap-filling of daily streamflow time series using Direct Sampling. <em>Journal of Hydrology</em> 569: 573–586.</li>
+      <li>Vogel, R.M., Stedinger, J.R. (1985). Minimum variance streamflow record augmentation procedures. <em>WRR</em> 21(5): 715–723.</li>
       <li>Philippine Statistics Authority (PSA). Census of Population and Housing, 1990–2020. Manila.</li>
-      <li>PIDS (1999). Determination of Basic Household Water Requirements.
-        Discussion Paper Series 99-02.</li>
-      <li>Asian Development Bank (2013). Philippines: Water Supply and Sanitation Sector Assessment.</li>
+      <li>Philippine Institute for Development Studies (1999). Determination of Basic Household Water Requirements. Discussion Paper 99-02.</li>
+      <li>Asian Development Bank (2013). <em>Philippines: Water Supply and Sanitation Sector Assessment</em>.</li>
+      <li>Department of Agriculture, Philippines (2023). National Crop Statistics Reference Guidelines.</li>
     </ol>
-  </section>
-</main>
+  </div>
+</section>
 
+<!-- ============================ FOOTER ============================ -->
 <footer>
-  <div>Fluxo · Bulacan Urban Water Demand Gap-Filling Tool</div>
-  <div class="small">Central Luzon State University · Built with the MOVE / station-substitution method (Hirsch 1982, WMO 1994)</div>
-  <div class="small">All computation runs locally in your browser. No data leaves your device.</div>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <h3>Fluxo</h3>
+      <p>A nationwide Philippine platform for water demand and agricultural crop gap-filling and projection, developed at the College of Climate Change and Environmental Management, Central Luzon State University.</p>
+      <p style="font-size: 0.84rem; color: rgba(244,251,246,0.6);">Privacy by architecture · All processing local · Open methodology</p>
+    </div>
+    <div class="footer-col">
+      <h4>Platform</h4>
+      <ul>
+        <li><a href="#mission">Mission</a></li>
+        <li><a href="#workflow">Analysis tool</a></li>
+        <li><a href="#methodology">Methodology</a></li>
+        <li><a href="#references">References</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Institution</h4>
+      <ul>
+        <li>College of Climate Change &amp; Environmental Management</li>
+        <li>Central Luzon State University</li>
+        <li>Science City of Muñoz, Nueva Ecija, Philippines</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="credit">Developed by Jerome N. Ancheta – UST and Elijah C. Flora – CLSU.</div>
+    <div>© <span id="year"></span> CCCEM · Central Luzon State University</div>
+  </div>
 </footer>
 
-<!-- Libraries: SheetJS for xlsx, PapaParse for CSV -->
+<!-- Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-<!-- App logic moved to external file so dev-servers (e.g. VSCode Live Server)
-     don't regex-inject reload snippets into our HTML-string template literals -->
 <script src="fluxo.js" defer></script>
 </body>
 </html>
