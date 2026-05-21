@@ -196,6 +196,9 @@ function extractSeries(rows) {
 //=========================================================================
 // ANNUALISE
 //=========================================================================
+const SECS_PER_DAY = 86400;
+function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+
 function annualize(records) {
   const byYear = {};
   for (const rec of records) {
@@ -221,6 +224,62 @@ function annualize(records) {
     }
   }
   return annual;
+}
+
+//-------------------------------------------------------------------------
+// River-flow annualiser — converts cms → monthly m³ → annual m³.
+// Preserves real per-month seasonality (unlike the broadcast assumption).
+//-------------------------------------------------------------------------
+function annualizeRiverFlow(records) {
+  const byYear = {};
+  for (const rec of records) {
+    if (rec.value == null) continue;
+    if (!byYear[rec.year]) byYear[rec.year] = { months: {}, totalM3: 0, count: 0 };
+    const monthM3 = rec.value * daysInMonth(rec.year, rec.month) * SECS_PER_DAY;
+    byYear[rec.year].months[rec.month] = monthM3;
+    byYear[rec.year].totalM3 += monthM3;
+    byYear[rec.year].count += 1;
+  }
+  const annual = {};
+  for (const y of Object.keys(byYear)) {
+    const obj = byYear[+y];
+    if (obj.count === 0) {
+      annual[+y] = { monthly_mean: null, annual: null, monthly_m3: null };
+      continue;
+    }
+    // If the year is incomplete, scale up to a full-12-month estimate so
+    // template substitution and trend fitting compare like with like.
+    const annualM3 = obj.count >= 12 ? obj.totalM3 : (obj.totalM3 * 12 / obj.count);
+    annual[+y] = {
+      monthly_mean: annualM3 / 12,
+      annual: annualM3,
+      monthly_m3: obj.months
+    };
+  }
+  return annual;
+}
+
+//-------------------------------------------------------------------------
+// Seasonal-shape estimation from observed years (fractions sum to 1).
+// Used to redistribute backcast / forecast / interpolated annual totals
+// across the twelve months when the category is river flow.
+//-------------------------------------------------------------------------
+function computeSeasonalShape(annualBy) {
+  const sums = Array(12).fill(0);
+  const counts = Array(12).fill(0);
+  for (const y of Object.keys(annualBy)) {
+    const row = annualBy[+y];
+    if (!row || !row.monthly_m3 || !row.annual) continue;
+    for (let m = 1; m <= 12; m++) {
+      if (row.monthly_m3[m] != null) {
+        sums[m - 1] += row.monthly_m3[m] / row.annual;
+        counts[m - 1] += 1;
+      }
+    }
+  }
+  const raw = sums.map((s, i) => counts[i] > 0 ? s / counts[i] : 1 / 12);
+  const total = raw.reduce((a, b) => a + b, 0) || 1;
+  return raw.map(v => v / total); // normalise → sums to 1
 }
 
 //=========================================================================
@@ -472,6 +531,18 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
     };
   }
 
+  // For river flow: preserve the actual per-month m³ on observed years,
+  // and attach the series-level seasonal shape so renderers / exporters
+  // can rebuild monthly values for filled or projected years.
+  if (s.seasonalShape) {
+    for (const y of Object.keys(rows).map(Number)) {
+      const obs = s.annual[y];
+      if (obs && obs.monthly_m3 && rows[y].flag === "observed") {
+        rows[y].monthly_m3 = obs.monthly_m3;
+      }
+    }
+  }
+
   return {
     supported: true,
     name: s.name,
@@ -481,7 +552,8 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
     Rmedian: Rmed,
     tier,
     template: template ? template.name : null,
-    trend
+    trend,
+    seasonalShape: s.seasonalShape || null
   };
 }
 
@@ -494,10 +566,15 @@ async function runPipeline() {
   STATE.rangeStart = horizon.start;
   STATE.rangeEnd   = horizon.end;
 
-  // Parse main file.
+  // Parse main file. River flow uses a different annualiser
+  // (cms → monthly m³ → sum) and preserves a per-year seasonal shape.
   const mainRows = await parseFile(STATE.fileMain);
   const mainSeries = extractSeries(mainRows);
-  for (const s of mainSeries) s.annual = annualize(s.records);
+  const isRiverFlow = STATE.category === "riverflow";
+  for (const s of mainSeries) {
+    s.annual = isRiverFlow ? annualizeRiverFlow(s.records) : annualize(s.records);
+    if (isRiverFlow) s.seasonalShape = computeSeasonalShape(s.annual);
+  }
 
   // Parse optional population file.
   let popSeriesByName = null;
@@ -535,8 +612,10 @@ function interpretSeries(r, opts) {
   const { category, timeframe, popMode } = opts;
   if (!r.supported) return [`${r.name}: could not be processed — ${r.reason}`];
 
-  const unit = category === "water" ? "m³ per year" : "ha";
-  const monthlyUnit = category === "water" ? "m³ per month" : "ha (monthly slice)";
+  const unit = category === "water" ? "m³ per year"
+             : category === "riverflow" ? "m³ per year"
+             : "ha";
+  const monthlyUnit = (category === "water" || category === "riverflow") ? "m³ per month" : "ha (monthly slice)";
 
   const years = Object.keys(r.rows).map(Number).sort((a, b) => a - b);
   const observed = years.filter(y => r.rows[y].flag === "observed");
@@ -606,6 +685,18 @@ function interpretSeries(r, opts) {
   }
   if (category === "agriculture") {
     insights.push(`Agriculture mode prioritises continuity of prediction; flagged backcasts/forecasts are best-estimates rather than archival values.`);
+  }
+  if (category === "riverflow") {
+    insights.push(`River flow values were converted from <strong>cms (m³/s)</strong> to monthly <strong>m³</strong> using actual days-in-month before gap-filling. Observed-year monthly variation is preserved; filled and projected years are redistributed using the average seasonal shape derived from observed data.`);
+    if (r.seasonalShape) {
+      const peakIdx = r.seasonalShape.indexOf(Math.max(...r.seasonalShape));
+      const dryIdx  = r.seasonalShape.indexOf(Math.min(...r.seasonalShape));
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      insights.push(`Observed seasonality peaks in <strong>${monthNames[peakIdx]}</strong> ` +
+                    `(~${(r.seasonalShape[peakIdx] * 100).toFixed(1)}% of annual flow), ` +
+                    `with a dry-season low in <strong>${monthNames[dryIdx]}</strong> ` +
+                    `(~${(r.seasonalShape[dryIdx] * 100).toFixed(1)}%).`);
+    }
   }
 
   return insights;
@@ -689,8 +780,9 @@ function renderLocBlock(r) {
   const years = Object.keys(r.rows).map(Number).sort((a, b) => a - b);
   const granularity = STATE.granularity;
   const isWater = STATE.category === "water";
-  const valHeader = isWater ? "Annual m³" : "Annual ha";
-  const monthHeader = isWater ? "Monthly m³ (avg)" : "Monthly ha (avg)";
+  const isRiver = STATE.category === "riverflow";
+  const valHeader = (isWater || isRiver) ? "Annual m³" : "Annual ha";
+  const monthHeader = (isWater || isRiver) ? "Monthly m³" : "Monthly ha (avg)";
 
   // Build table rows — note Status column moved to LAST position.
   const showPop = STATE.popMode === "with";
@@ -704,9 +796,31 @@ function renderLocBlock(r) {
                 : (row.flag && row.flag.startsWith("backcast")) ? "row-backcast"
                 : "";
       for (let m = 1; m <= 12; m++) {
-        const v = row.monthly_mean;
-        const lo = row.value_lower90 != null ? row.value_lower90 / 12 : null;
-        const hi = row.value_upper90 != null ? row.value_upper90 / 12 : null;
+        // River flow: prefer real monthly m³ on observed years;
+        // for filled/projected years, distribute annual via the seasonal shape.
+        let v, lo, hi;
+        if (isRiver) {
+          if (row.monthly_m3 && row.monthly_m3[m] != null) {
+            v = row.monthly_m3[m];
+            lo = row.value_lower90 != null && row.value_mean
+              ? row.value_lower90 * (v / row.value_mean) : null;
+            hi = row.value_upper90 != null && row.value_mean
+              ? row.value_upper90 * (v / row.value_mean) : null;
+          } else if (r.seasonalShape && row.value_mean != null) {
+            const frac = r.seasonalShape[m - 1];
+            v = row.value_mean * frac;
+            lo = row.value_lower90 != null ? row.value_lower90 * frac : null;
+            hi = row.value_upper90 != null ? row.value_upper90 * frac : null;
+          } else {
+            v = row.monthly_mean;
+            lo = row.value_lower90 != null ? row.value_lower90 / 12 : null;
+            hi = row.value_upper90 != null ? row.value_upper90 / 12 : null;
+          }
+        } else {
+          v = row.monthly_mean;
+          lo = row.value_lower90 != null ? row.value_lower90 / 12 : null;
+          hi = row.value_upper90 != null ? row.value_upper90 / 12 : null;
+        }
         rowsHtml += `<tr class="${cls}">
           <td>${y}-${String(m).padStart(2, "0")}</td>
           ${showPop ? `<td>${fmtInt(row.population)}</td>` : ""}
@@ -776,12 +890,23 @@ function renderLocBlock(r) {
 //   Row 3: ;Year,Month,Loc1,Loc2,...
 //   Data: Year,Month,V1,V2,...
 //=========================================================================
+function monthlyValueFor(r, row, monthIdx) {
+  // monthIdx: 1..12. Returns the monthly value (already in target units).
+  if (!row || row.value_mean == null) return null;
+  if (STATE.category === "riverflow") {
+    if (row.monthly_m3 && row.monthly_m3[monthIdx] != null) return row.monthly_m3[monthIdx];
+    if (r.seasonalShape) return row.value_mean * r.seasonalShape[monthIdx - 1];
+  }
+  return row.value_mean / 12;
+}
+
 function buildFilledCsv(results) {
   const supported = results.filter(r => r.supported);
   if (!supported.length) return "";
 
-  const isWater = STATE.category === "water";
-  const unit = isWater ? "m3" : "ha";
+  // For both Urban Water Use and River Flow the output unit is m³;
+  // Agriculture uses hectares.
+  const unit = STATE.category === "agriculture" ? "ha" : "m3";
   const locNames = supported.map(r => r.name);
 
   // Row 1: ";" + N+1 commas ⇒ N+2 cells, all empty (first cell is just ";")
@@ -793,19 +918,18 @@ function buildFilledCsv(results) {
 
   const lines = [emptyHeader1, unitsRow, headerRow];
 
-  // Build a per-location year→annual lookup.
-  const lookup = {};
-  for (const r of supported) lookup[r.name] = r.rows;
+  // Index supported series by name.
+  const byName = {};
+  for (const r of supported) byName[r.name] = r;
 
   // Year range from STATE; for each year, emit 12 monthly rows.
   for (let y = STATE.rangeStart; y <= STATE.rangeEnd; y++) {
     for (let m = 1; m <= 12; m++) {
       const vals = locNames.map(n => {
-        const row = lookup[n][y];
-        if (!row || row.value_mean == null) return "";
-        // Monthly slice: annual / 12, rounded to 2dp.
-        const monthly = row.value_mean / 12;
-        return monthly.toFixed(2);
+        const r = byName[n];
+        const row = r.rows[y];
+        const v = monthlyValueFor(r, row, m);
+        return v == null ? "" : v.toFixed(2);
       });
       lines.push(`${y},${m},${vals.join(",")}`);
     }
@@ -860,13 +984,15 @@ function copyTableToClipboard(results) {
   const supported = results.filter(r => r.supported);
   const locNames = supported.map(r => r.name);
   const lines = ["Year\tMonth\t" + locNames.join("\t")];
-  const lookup = {};
-  for (const r of supported) lookup[r.name] = r.rows;
+  const byName = {};
+  for (const r of supported) byName[r.name] = r;
   for (let y = STATE.rangeStart; y <= STATE.rangeEnd; y++) {
     for (let m = 1; m <= 12; m++) {
       const vals = locNames.map(n => {
-        const row = lookup[n][y];
-        return (row && row.value_mean != null) ? (row.value_mean / 12).toFixed(2) : "";
+        const r = byName[n];
+        const row = r.rows[y];
+        const v = monthlyValueFor(r, row, m);
+        return v == null ? "" : v.toFixed(2);
       });
       lines.push(`${y}\t${m}\t${vals.join("\t")}`);
     }
@@ -994,6 +1120,15 @@ function applyStep4Copy() {
     $("#popYesDesc").textContent = "Per-household normalisation. A second upload slot will appear in the next step.";
     $("#popNoTitle").textContent = "No — work directly with the values";
     $("#popNoDesc").textContent = "Direct station-substitution and trend extrapolation, no normalisation step.";
+  } else if (STATE.category === "riverflow") {
+    $("#popQuestion").textContent = "River flow processing — no reference data required.";
+    $("#popHelp").innerHTML = `River discharge is converted from <strong>cms (m³/s)</strong> to monthly <strong>m³</strong>
+      using actual days-in-month, and gap-filled / projected directly. No per-capita normalisation applies.
+      Select <em>Process directly</em> to continue.`;
+    $("#popYesTitle").textContent = "Apply a reference multiplier (rare)";
+    $("#popYesDesc").textContent = "Reserved for catchment-area scaling. Upload a matching reference file in the next step.";
+    $("#popNoTitle").textContent = "Process directly (recommended)";
+    $("#popNoDesc").textContent = "Convert cms → m³ and proceed. Real monthly seasonality preserved on observed years.";
   } else {
     $("#popQuestion").textContent = "Do you have reference population data?";
     $("#popHelp").innerHTML = `If population data is available, the platform will compute litres-per-capita-per-day (LPCD) and use it to
@@ -1007,11 +1142,16 @@ function applyStep4Copy() {
 }
 
 function applyStep5Copy() {
-  const cat = STATE.category === "agriculture" ? "Crop planted/harvested" : "Water demand";
+  const cat = STATE.category === "agriculture" ? "Crop planted/harvested"
+            : STATE.category === "riverflow"   ? "River flow (cms)"
+            : "Water demand";
   $("#mainLabel").textContent = `${cat} dataset`;
   const helpBits = [
     "Provide a wide-format CSV/XLSX (Year, Month, Loc1, Loc2, …). Empty cells are treated as missing values."
   ];
+  if (STATE.category === "riverflow") {
+    helpBits.push("Discharge values will be auto-converted from cms (m³/s) to monthly m³ before gap-filling.");
+  }
   if (STATE.timeframe === "projected") {
     helpBits.push("Output horizon will extend to 2050 using fitted trend extrapolation.");
   }

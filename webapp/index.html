@@ -1235,6 +1235,11 @@
           <div class="opt-title">Urban Water Use</div>
           <div class="opt-desc">Water demand in cubic metres (m³) per water district or LGU.</div>
         </div>
+        <div class="opt" data-key="category" data-value="riverflow">
+          <div class="opt-icon">🌊</div>
+          <div class="opt-title">River Flow / Streamflow</div>
+          <div class="opt-desc">Discharge in cms (m³/s) per gauging station. Auto-converted to m³ with real monthly seasonality preserved.</div>
+        </div>
       </div>
       <div class="step-nav">
         <span></span>
@@ -1405,6 +1410,7 @@
       <div class="method-step"><span class="stepnum">2.1</span><strong>De-staircase.</strong> The raw Philippine water and crop datasets often broadcast a single annual figure across 12 months. The platform collapses each 12-row block back to one annual value by taking the mean of available monthly entries.</div>
       <div class="method-step"><span class="stepnum">2.2</span><strong>Annual reconstruction.</strong> <code>annual = monthly_mean × 12</code>. Missing months are excluded from the mean rather than treated as zeros.</div>
       <div class="method-step"><span class="stepnum">2.3</span><strong>Per-capita normalisation (optional).</strong> If population data is supplied, <code>LPCD = annual × 1000 ÷ (population × 365)</code> — litres per capita per day. Otherwise the platform proceeds directly on annual values.</div>
+      <div class="method-step"><span class="stepnum">2.4</span><strong>River flow conversion.</strong> When the category is <em>River Flow</em>, the platform assumes input is discharge in cms (m³/s) and converts each monthly value to monthly m³ using actual days-in-month: <code>monthly_m³ = cms × days × 86 400</code>. The annual figure is the sum of the twelve monthly m³ values. Real seasonality is preserved on observed years; for filled or projected years, the per-month shape is reconstructed from the observed seasonal fraction.</div>
     </div>
   </details>
 
