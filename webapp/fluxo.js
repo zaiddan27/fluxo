@@ -15,19 +15,33 @@
 // STATE
 //=========================================================================
 const STATE = {
-  category: null,      // "agriculture" | "water"
-  timeframe: null,     // "current" | "projected"
+  category: null,      // "agriculture" | "water" | "riverflow"
+  timeframe: null,     // "current" | "projected" | "both"
   granularity: null,   // "annual" | "monthly"
-  popMode: null,       // "with" | "without"
+  popMode: null,       // "with" | "without"  (agri: "with" = disaggregate)
   fileMain: null,
   filePop:  null,
+  parentTotalHa: null, // agri disaggregation: parent (province/region) total land area in ha
   results:  null,
   rangeStart: 2000,
-  rangeEnd:   2024     // updated to 2050 when timeframe = projected
+  rangeEnd:   2024     // updated per timeframe choice
 };
 
-const HORIZON_CURRENT = { start: 2000, end: 2024 };
-const HORIZON_PROJECTED = { start: 2000, end: 2050 }; // include observed + projected
+// Output horizons per timeframe choice.
+//   current   → 2000–2024 (historical gap-fill only)
+//   projected → 2025–2050 (future projection only)
+//   both      → 2000–2050 (gap-fill + projection)
+// Trend / station-substitution always fit from the observed years present in
+// the data, independent of the output window, so a future-only window still
+// fits its trend from the observed record.
+const HORIZON_CURRENT   = { start: 2000, end: 2024 };
+const HORIZON_PROJECTED = { start: 2025, end: 2050 };
+const HORIZON_BOTH      = { start: 2000, end: 2050 };
+function horizonFor(timeframe) {
+  if (timeframe === "projected") return HORIZON_PROJECTED;
+  if (timeframe === "both")      return HORIZON_BOTH;
+  return HORIZON_CURRENT;
+}
 
 // Confidence-tier classification thresholds.
 function classifyTier(nOverlap, cvR) {
@@ -196,9 +210,6 @@ function extractSeries(rows) {
 //=========================================================================
 // ANNUALISE
 //=========================================================================
-const SECS_PER_DAY = 86400;
-function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
-
 function annualize(records) {
   const byYear = {};
   for (const rec of records) {
@@ -227,41 +238,42 @@ function annualize(records) {
 }
 
 //-------------------------------------------------------------------------
-// River-flow annualiser — converts cms → monthly m³ → annual m³.
-// Preserves real per-month seasonality (unlike the broadcast assumption).
+// River-flow annualiser — stays in cms (m³/s). The per-year "level" is the
+// mean of the observed monthly cms readings; per-month cms is preserved so
+// real seasonality survives. We only ever predict the missing cms values.
 //-------------------------------------------------------------------------
 function annualizeRiverFlow(records) {
   const byYear = {};
   for (const rec of records) {
     if (rec.value == null) continue;
-    if (!byYear[rec.year]) byYear[rec.year] = { months: {}, totalM3: 0, count: 0 };
-    const monthM3 = rec.value * daysInMonth(rec.year, rec.month) * SECS_PER_DAY;
-    byYear[rec.year].months[rec.month] = monthM3;
-    byYear[rec.year].totalM3 += monthM3;
+    if (!byYear[rec.year]) byYear[rec.year] = { months: {}, sum: 0, count: 0 };
+    byYear[rec.year].months[rec.month] = rec.value;
+    byYear[rec.year].sum += rec.value;
     byYear[rec.year].count += 1;
   }
   const annual = {};
   for (const y of Object.keys(byYear)) {
     const obj = byYear[+y];
     if (obj.count === 0) {
-      annual[+y] = { monthly_mean: null, annual: null, monthly_m3: null };
+      annual[+y] = { monthly_mean: null, annual: null, monthly_cms: null };
       continue;
     }
-    // If the year is incomplete, scale up to a full-12-month estimate so
-    // template substitution and trend fitting compare like with like.
-    const annualM3 = obj.count >= 12 ? obj.totalM3 : (obj.totalM3 * 12 / obj.count);
+    // Year level = mean cms over the observed months (incomplete years simply
+    // average the months that exist). This is the value gap-filled/projected.
+    const meanCms = obj.sum / obj.count;
     annual[+y] = {
-      monthly_mean: annualM3 / 12,
-      annual: annualM3,
-      monthly_m3: obj.months
+      monthly_mean: meanCms,
+      annual: meanCms,
+      monthly_cms: obj.months
     };
   }
   return annual;
 }
 
 //-------------------------------------------------------------------------
-// Seasonal-shape estimation from observed years (fractions sum to 1).
-// Used to redistribute backcast / forecast / interpolated annual totals
+// Seasonal-multiplier estimation from observed years (mean = 1).
+// monthMultiplier[m] × year-mean-cms reconstructs a month's cms, so it is
+// used to predict missing months and to redistribute predicted year levels
 // across the twelve months when the category is river flow.
 //-------------------------------------------------------------------------
 function computeSeasonalShape(annualBy) {
@@ -269,17 +281,17 @@ function computeSeasonalShape(annualBy) {
   const counts = Array(12).fill(0);
   for (const y of Object.keys(annualBy)) {
     const row = annualBy[+y];
-    if (!row || !row.monthly_m3 || !row.annual) continue;
+    if (!row || !row.monthly_cms || !row.annual) continue;
     for (let m = 1; m <= 12; m++) {
-      if (row.monthly_m3[m] != null) {
-        sums[m - 1] += row.monthly_m3[m] / row.annual;
+      if (row.monthly_cms[m] != null) {
+        sums[m - 1] += row.monthly_cms[m] / row.annual; // ratio to year mean
         counts[m - 1] += 1;
       }
     }
   }
-  const raw = sums.map((s, i) => counts[i] > 0 ? s / counts[i] : 1 / 12);
-  const total = raw.reduce((a, b) => a + b, 0) || 1;
-  return raw.map(v => v / total); // normalise → sums to 1
+  const raw = sums.map((s, i) => counts[i] > 0 ? s / counts[i] : 1);
+  const avg = raw.reduce((a, b) => a + b, 0) / 12 || 1;
+  return raw.map(v => v / avg); // normalise → mean of 1
 }
 
 //=========================================================================
@@ -343,16 +355,18 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
   const firstObs = ys[0];
   const lastObs  = ys[ys.length - 1];
 
-  // Build a working value series in the chosen normalised space.
-  // If popMode = "with", use LPCD (per-capita per day); else use raw annual.
+  // Build a working value series in the chosen normalised space. LPCD
+  // normalisation applies only to Urban Water Use; for agriculture the "with"
+  // option means land-area disaggregation (done upstream), not per-capita.
+  const useLPCD = category === "water" && popMode === "with";
   function toNorm(annualVal, year) {
-    if (popMode !== "with") return annualVal;
+    if (!useLPCD) return annualVal;
     const pop = popLookup(popSeries, s.name, year);
     if (pop == null || pop <= 0) return null;
     return (annualVal * 1000) / (pop * 365); // LPCD
   }
   function fromNorm(normVal, year) {
-    if (popMode !== "with") return normVal;
+    if (!useLPCD) return normVal;
     const pop = popLookup(popSeries, s.name, year);
     if (pop == null || pop <= 0) return null;
     return (normVal * pop * 365) / 1000;
@@ -373,7 +387,7 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
       const av = templateAnnual[y].annual;
       if (av == null) continue;
       let v;
-      if (popMode === "with" && s.name !== template.name) {
+      if (useLPCD && s.name !== template.name) {
         // Template normalisation must use its OWN population for LPCD.
         const tplPop = popLookup(popSeries, template.name, y);
         v = (tplPop && tplPop > 0) ? (av * 1000) / (tplPop * 365) : null;
@@ -531,14 +545,14 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
     };
   }
 
-  // For river flow: preserve the actual per-month m³ on observed years,
-  // and attach the series-level seasonal shape so renderers / exporters
-  // can rebuild monthly values for filled or projected years.
+  // For river flow: preserve the actual per-month cms on observed years,
+  // and attach the series-level seasonal multiplier so renderers / exporters
+  // can predict cms for missing months and fully missing years.
   if (s.seasonalShape) {
     for (const y of Object.keys(rows).map(Number)) {
       const obs = s.annual[y];
-      if (obs && obs.monthly_m3 && rows[y].flag === "observed") {
-        rows[y].monthly_m3 = obs.monthly_m3;
+      if (obs && obs.monthly_cms && rows[y].flag === "observed") {
+        rows[y].monthly_cms = obs.monthly_cms;
       }
     }
   }
@@ -558,27 +572,94 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
 }
 
 //=========================================================================
+// LAND-AREA TABLE PARSER (agriculture disaggregation)
+// Accepts a simple two-column CSV/XLSX: <Area name>, <Land area (ha)>.
+// A header row (no numeric area) is skipped automatically.
+//=========================================================================
+function parseLandTable(rows) {
+  const out = [];
+  for (const r of rows) {
+    if (!r) continue;
+    const cells = (Array.isArray(r) ? r : Object.values(r))
+      .map(c => (c == null ? "" : String(c).trim()));
+    let ha = null, name = null;
+    for (const c of cells) {
+      if (c === "") continue;
+      const n = parseFloat(c.replace(/,/g, ""));
+      const isNum = /\d/.test(c) && !isNaN(n);
+      if (ha == null && isNum) ha = n;
+      else if (name == null && !isNum) {
+        // Strip the leading-semicolon / stray-punctuation convention; only
+        // accept a name once something real remains.
+        const cleaned = cleanLocationName(c);
+        if (cleaned) name = cleaned;
+      }
+    }
+    if (ha != null && ha > 0 && name) out.push({ area: name, ha });
+  }
+  return out;
+}
+
+//=========================================================================
+// AGRI DISAGGREGATION — split a parent-area crop total across child areas
+// by land-area share:  child(c,y) = parent_total(c,y) × (area_ha ÷ parent_ha)
+//=========================================================================
+function disaggregateByLandArea(parentSeries, land, parentTotalHa) {
+  const sumHa = land.reduce((a, b) => a + b.ha, 0);
+  const denom = (parentTotalHa && parentTotalHa > 0) ? parentTotalHa : sumHa;
+  const multiCrop = parentSeries.length > 1;
+  const series = [];
+  for (const area of land) {
+    const share = denom > 0 ? area.ha / denom : 0;
+    for (const crop of parentSeries) {
+      const name = multiCrop ? `${area.area} · ${crop.name}` : area.area;
+      const records = crop.records.map(rec => ({
+        year: rec.year,
+        month: rec.month,
+        value: rec.value == null ? null : rec.value * share
+      }));
+      series.push({ name, records, share, area: area.area });
+    }
+  }
+  return series;
+}
+
+//=========================================================================
 // PIPELINE ENTRY
 //=========================================================================
 async function runPipeline() {
   // Horizon depends on timeframe choice.
-  const horizon = STATE.timeframe === "projected" ? HORIZON_PROJECTED : HORIZON_CURRENT;
+  const horizon = horizonFor(STATE.timeframe);
   STATE.rangeStart = horizon.start;
   STATE.rangeEnd   = horizon.end;
 
-  // Parse main file. River flow uses a different annualiser
-  // (cms → monthly m³ → sum) and preserves a per-year seasonal shape.
-  const mainRows = await parseFile(STATE.fileMain);
-  const mainSeries = extractSeries(mainRows);
   const isRiverFlow = STATE.category === "riverflow";
+  const isAgriDisagg = STATE.category === "agriculture" && STATE.popMode === "with";
+
+  // Parse main file.
+  const mainRows = await parseFile(STATE.fileMain);
+  let mainSeries;
+  if (isAgriDisagg) {
+    // Main file holds the parent-area crop totals (each value column = a crop);
+    // the second file is a land-area table used to split them by share.
+    const parentSeries = extractSeries(mainRows);
+    if (!STATE.filePop) throw new Error("Disaggregation needs a land-area table in the second upload slot.");
+    const land = parseLandTable(await parseFile(STATE.filePop));
+    if (!land.length) throw new Error("No usable rows found in the land-area table (expected: Area, Land area in ha).");
+    mainSeries = disaggregateByLandArea(parentSeries, land, STATE.parentTotalHa);
+  } else {
+    mainSeries = extractSeries(mainRows);
+  }
+
+  // River flow uses a cms annualiser and preserves a per-year seasonal shape.
   for (const s of mainSeries) {
     s.annual = isRiverFlow ? annualizeRiverFlow(s.records) : annualize(s.records);
     if (isRiverFlow) s.seasonalShape = computeSeasonalShape(s.annual);
   }
 
-  // Parse optional population file.
+  // Parse optional population file — water only (LPCD normalisation).
   let popSeriesByName = null;
-  if (STATE.popMode === "with" && STATE.filePop) {
+  if (STATE.category === "water" && STATE.popMode === "with" && STATE.filePop) {
     const popRows = await parseFile(STATE.filePop);
     const popSeries = extractSeries(popRows);
     popSeriesByName = {};
@@ -613,9 +694,12 @@ function interpretSeries(r, opts) {
   if (!r.supported) return [`${r.name}: could not be processed — ${r.reason}`];
 
   const unit = category === "water" ? "m³ per year"
-             : category === "riverflow" ? "m³ per year"
+             : category === "riverflow" ? "cms (mean)"
              : "ha";
-  const monthlyUnit = (category === "water" || category === "riverflow") ? "m³ per month" : "ha (monthly slice)";
+  const monthlyUnit = category === "riverflow" ? "cms per month"
+             : category === "water" ? "m³ per month" : "ha (monthly slice)";
+  // River-flow values are small; keep decimals in the prose too.
+  const fmtU = category === "riverflow" ? fmt2 : fmtInt;
 
   const years = Object.keys(r.rows).map(Number).sort((a, b) => a - b);
   const observed = years.filter(y => r.rows[y].flag === "observed");
@@ -642,7 +726,7 @@ function interpretSeries(r, opts) {
     const yrs = lastObsY - firstObsY;
     const cagr = (Math.pow(lastObsV / firstObsV, 1 / yrs) - 1) * 100;
     insights.push(`Observed growth: <strong>${cagr >= 0 ? "+" : ""}${cagr.toFixed(2)}% CAGR</strong> ` +
-                  `from ${firstObsY} (${fmtInt(firstObsV)} ${unit}) to ${lastObsY} (${fmtInt(lastObsV)} ${unit}).`);
+                  `from ${firstObsY} (${fmtU(firstObsV)} ${unit}) to ${lastObsY} (${fmtU(lastObsV)} ${unit}).`);
   } else if (obsValues.length === 1) {
     insights.push(`Only one observed year (${firstObsY}). Trend metrics cannot be computed; backcasts rely on template substitution.`);
   }
@@ -666,7 +750,7 @@ function interpretSeries(r, opts) {
     const lo = r.rows[lastFc].value_lower90;
     const hi = r.rows[lastFc].value_upper90;
     insights.push(`Projection to <strong>${lastFc}</strong>: ` +
-                  `<strong>${fmtInt(v)}</strong> ${unit} (90% CI: ${fmtInt(lo)}–${fmtInt(hi)}).`);
+                  `<strong>${fmtU(v)}</strong> ${unit} (90% CI: ${fmtU(lo)}–${fmtU(hi)}).`);
 
     if (r.trend && r.trend.slope != null && lastObsV != null && lastObsV > 0) {
       const pctChange = ((v - lastObsV) / lastObsV) * 100;
@@ -687,15 +771,15 @@ function interpretSeries(r, opts) {
     insights.push(`Agriculture mode prioritises continuity of prediction; flagged backcasts/forecasts are best-estimates rather than archival values.`);
   }
   if (category === "riverflow") {
-    insights.push(`River flow values were converted from <strong>cms (m³/s)</strong> to monthly <strong>m³</strong> using actual days-in-month before gap-filling. Observed-year monthly variation is preserved; filled and projected years are redistributed using the average seasonal shape derived from observed data.`);
+    insights.push(`River flow stays in <strong>cms (m³/s)</strong> — only the missing discharge values are predicted. The per-year level is the mean of the observed monthly cms; missing months and fully missing years are reconstructed as <em>year-mean × month multiplier</em>, where the multiplier is the average seasonal shape (mean&nbsp;1) of the observed data. Observed months pass through unchanged.`);
     if (r.seasonalShape) {
       const peakIdx = r.seasonalShape.indexOf(Math.max(...r.seasonalShape));
       const dryIdx  = r.seasonalShape.indexOf(Math.min(...r.seasonalShape));
       const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
       insights.push(`Observed seasonality peaks in <strong>${monthNames[peakIdx]}</strong> ` +
-                    `(~${(r.seasonalShape[peakIdx] * 100).toFixed(1)}% of annual flow), ` +
+                    `(~${r.seasonalShape[peakIdx].toFixed(2)}× the yearly mean), ` +
                     `with a dry-season low in <strong>${monthNames[dryIdx]}</strong> ` +
-                    `(~${(r.seasonalShape[dryIdx] * 100).toFixed(1)}%).`);
+                    `(~${r.seasonalShape[dryIdx].toFixed(2)}×).`);
     }
   }
 
@@ -756,7 +840,7 @@ function explainResult(r) {
                `from <strong>${r.overlap}</strong> overlap year${r.overlap === 1 ? "" : "s"} ` +
                `(CV = ${(r.cv * 100).toFixed(1)}%). Tier: ${flagLabel(r.tier)}.`);
   }
-  if (r.trend && r.trend.n >= 2 && STATE.timeframe === "projected") {
+  if (r.trend && r.trend.n >= 2 && (STATE.timeframe === "projected" || STATE.timeframe === "both")) {
     parts.push(`Projection trend: slope = <strong>${fmt2(r.trend.slope)}</strong> per year, R² = ${r.trend.r2.toFixed(2)}, ` +
                `90% CI = ±${fmt2(1.645 * r.trend.seResid)} on the normalised scale.`);
   }
@@ -781,11 +865,14 @@ function renderLocBlock(r) {
   const granularity = STATE.granularity;
   const isWater = STATE.category === "water";
   const isRiver = STATE.category === "riverflow";
-  const valHeader = (isWater || isRiver) ? "Annual m³" : "Annual ha";
-  const monthHeader = (isWater || isRiver) ? "Monthly m³" : "Monthly ha (avg)";
+  const valHeader = isRiver ? "Mean cms" : isWater ? "Annual m³" : "Annual ha";
+  const monthHeader = isRiver ? "Monthly cms" : isWater ? "Monthly m³" : "Monthly ha (avg)";
+  // River-flow figures are small (~1–5 cms) so need decimals; others are integer-scale.
+  const fmtV = isRiver ? fmt2 : fmtInt;
 
   // Build table rows — note Status column moved to LAST position.
-  const showPop = STATE.popMode === "with";
+  // Population column is meaningful for Urban Water Use (LPCD) only.
+  const showPop = STATE.category === "water" && STATE.popMode === "with";
   let rowsHtml = "";
 
   if (granularity === "monthly") {
@@ -796,25 +883,25 @@ function renderLocBlock(r) {
                 : (row.flag && row.flag.startsWith("backcast")) ? "row-backcast"
                 : "";
       for (let m = 1; m <= 12; m++) {
-        // River flow: prefer real monthly m³ on observed years;
-        // for filled/projected years, distribute annual via the seasonal shape.
+        // River flow stays in cms: prefer the real monthly cms on observed
+        // years; for missing months / years predict cms = year-mean × monthly
+        // multiplier. Other categories broadcast annual ÷ 12.
         let v, lo, hi;
         if (isRiver) {
-          if (row.monthly_m3 && row.monthly_m3[m] != null) {
-            v = row.monthly_m3[m];
+          if (row.monthly_cms && row.monthly_cms[m] != null) {
+            v = row.monthly_cms[m];
             lo = row.value_lower90 != null && row.value_mean
               ? row.value_lower90 * (v / row.value_mean) : null;
             hi = row.value_upper90 != null && row.value_mean
               ? row.value_upper90 * (v / row.value_mean) : null;
           } else if (r.seasonalShape && row.value_mean != null) {
-            const frac = r.seasonalShape[m - 1];
-            v = row.value_mean * frac;
-            lo = row.value_lower90 != null ? row.value_lower90 * frac : null;
-            hi = row.value_upper90 != null ? row.value_upper90 * frac : null;
+            const mult = r.seasonalShape[m - 1];
+            v = row.value_mean * mult;
+            lo = row.value_lower90 != null ? row.value_lower90 * mult : null;
+            hi = row.value_upper90 != null ? row.value_upper90 * mult : null;
           } else {
             v = row.monthly_mean;
-            lo = row.value_lower90 != null ? row.value_lower90 / 12 : null;
-            hi = row.value_upper90 != null ? row.value_upper90 / 12 : null;
+            lo = row.value_lower90; hi = row.value_upper90;
           }
         } else {
           v = row.monthly_mean;
@@ -824,8 +911,8 @@ function renderLocBlock(r) {
         rowsHtml += `<tr class="${cls}">
           <td>${y}-${String(m).padStart(2, "0")}</td>
           ${showPop ? `<td>${fmtInt(row.population)}</td>` : ""}
-          <td>${fmtInt(v)}</td>
-          <td>${fmtInt(lo)} – ${fmtInt(hi)}</td>
+          <td>${fmtV(v)}</td>
+          <td>${fmtV(lo)} – ${fmtV(hi)}</td>
           <td>${flagLabel(row.flag)}</td>
         </tr>`;
       }
@@ -836,12 +923,15 @@ function renderLocBlock(r) {
       const cls = row.flag === "forecast" ? "row-forecast"
                 : (row.flag && row.flag.startsWith("backcast")) ? "row-backcast"
                 : "";
+      // River flow: value_mean IS the monthly-mean cms, so the monthly column
+      // mirrors it (not value_mean ÷ 12, which only makes sense for annual totals).
+      const monthCell = isRiver ? row.value_mean : row.monthly_mean;
       rowsHtml += `<tr class="${cls}">
         <td>${y}</td>
         ${showPop ? `<td>${fmtInt(row.population)}</td>` : ""}
-        <td>${fmtInt(row.value_mean)}</td>
-        <td>${fmtInt(row.value_lower90)} – ${fmtInt(row.value_upper90)}</td>
-        <td>${fmtInt(row.monthly_mean)}</td>
+        <td>${fmtV(row.value_mean)}</td>
+        <td>${fmtV(row.value_lower90)} – ${fmtV(row.value_upper90)}</td>
+        <td>${fmtV(monthCell)}</td>
         <td>${flagLabel(row.flag)}</td>
       </tr>`;
     }
@@ -894,8 +984,10 @@ function monthlyValueFor(r, row, monthIdx) {
   // monthIdx: 1..12. Returns the monthly value (already in target units).
   if (!row || row.value_mean == null) return null;
   if (STATE.category === "riverflow") {
-    if (row.monthly_m3 && row.monthly_m3[monthIdx] != null) return row.monthly_m3[monthIdx];
+    // cms: real reading if observed, else year-mean × monthly multiplier.
+    if (row.monthly_cms && row.monthly_cms[monthIdx] != null) return row.monthly_cms[monthIdx];
     if (r.seasonalShape) return row.value_mean * r.seasonalShape[monthIdx - 1];
+    return row.value_mean;
   }
   return row.value_mean / 12;
 }
@@ -904,9 +996,11 @@ function buildFilledCsv(results) {
   const supported = results.filter(r => r.supported);
   if (!supported.length) return "";
 
-  // For both Urban Water Use and River Flow the output unit is m³;
-  // Agriculture uses hectares.
-  const unit = STATE.category === "agriculture" ? "ha" : "m3";
+  // Output unit per category: River Flow → cms, Urban Water Use → m³,
+  // Agriculture → hectares.
+  const unit = STATE.category === "agriculture" ? "ha"
+             : STATE.category === "riverflow"   ? "cms"
+             : "m3";
   const locNames = supported.map(r => r.name);
 
   // Row 1: ";" + N+1 commas ⇒ N+2 cells, all empty (first cell is just ";")
@@ -1005,10 +1099,17 @@ function copyTableToClipboard(results) {
 
 function buildHtmlReport(results, originalFilename) {
   const ts = new Date().toLocaleString();
-  const category = STATE.category === "water" ? "Urban Water Use" : "Agricultural Crop Planted/Harvested";
-  const timeframe = STATE.timeframe === "projected" ? "Projected Data (2025–2050)" : "Current Data (2000–2024)";
+  const category = STATE.category === "water" ? "Urban Water Use"
+                 : STATE.category === "riverflow" ? "River Flow / Streamflow (cms)"
+                 : "Agricultural Crop Planted/Harvested";
+  const timeframe = STATE.timeframe === "projected" ? "Projected Data (2025–2050)"
+                  : STATE.timeframe === "both"      ? "Both — Historical + Projected (2000–2050)"
+                  : "Current Data (2000–2024)";
   const granularity = STATE.granularity === "monthly" ? "Monthly" : "Annual";
-  const popMode = STATE.popMode === "with" ? "Population data provided" : "Population data not provided";
+  const popMode = STATE.category === "agriculture"
+                  ? (STATE.popMode === "with" ? "Land-area disaggregation from a parent-area total" : "Direct per-location values")
+                  : STATE.category === "riverflow" ? "Direct cms processing"
+                  : (STATE.popMode === "with" ? "Population data provided (LPCD)" : "Population data not provided");
 
   let body = `
     <h1>Fluxo Analysis Report</h1>
@@ -1112,23 +1213,24 @@ function refreshRunButton() {
 function applyStep4Copy() {
   // Step 4 question copy adapts to category.
   if (STATE.category === "agriculture") {
-    $("#popQuestion").textContent = "Do you have farmer / household reference data?";
-    $("#popHelp").innerHTML = `If reference per-household area data is available, the platform will normalise crop area against it
-      before gap-filling and projecting. If not, it works directly with the raw planted/harvested values.
-      Either way, <strong>no external population data is used</strong> — only what you upload.`;
-    $("#popYesTitle").textContent = "Yes — I will upload reference data";
-    $("#popYesDesc").textContent = "Per-household normalisation. A second upload slot will appear in the next step.";
-    $("#popNoTitle").textContent = "No — work directly with the values";
-    $("#popNoDesc").textContent = "Direct station-substitution and trend extrapolation, no normalisation step.";
+    $("#popQuestion").textContent = "How should the platform obtain per-location crop data?";
+    $("#popHelp").innerHTML = `If you only have a <strong>parent-area total</strong> (e.g. a whole province or region),
+      the platform can split it into per-municipality estimates by <strong>land-area share</strong>:
+      <code>share = area_ha ÷ parent_total_ha</code>, then <code>value = parent_total × share</code>.
+      If you already have per-location values, it works with them directly.`;
+    $("#popYesTitle").textContent = "Disaggregate from a parent-area total";
+    $("#popYesDesc").textContent = "Upload parent crop totals + a land-area table (ha). The platform computes each area's share and splits the totals.";
+    $("#popNoTitle").textContent = "I already have per-location values";
+    $("#popNoDesc").textContent = "Direct station-substitution and trend extrapolation on the values you upload.";
   } else if (STATE.category === "riverflow") {
     $("#popQuestion").textContent = "River flow processing — no reference data required.";
-    $("#popHelp").innerHTML = `River discharge is converted from <strong>cms (m³/s)</strong> to monthly <strong>m³</strong>
-      using actual days-in-month, and gap-filled / projected directly. No per-capita normalisation applies.
-      Select <em>Process directly</em> to continue.`;
+    $("#popHelp").innerHTML = `River discharge stays in <strong>cms (m³/s)</strong>. The platform predicts only the
+      <strong>missing cms values</strong> — gap-filling missing months/years and projecting forward — while observed
+      readings pass through unchanged. No per-capita normalisation applies. Select <em>Process directly</em> to continue.`;
     $("#popYesTitle").textContent = "Apply a reference multiplier (rare)";
     $("#popYesDesc").textContent = "Reserved for catchment-area scaling. Upload a matching reference file in the next step.";
     $("#popNoTitle").textContent = "Process directly (recommended)";
-    $("#popNoDesc").textContent = "Convert cms → m³ and proceed. Real monthly seasonality preserved on observed years.";
+    $("#popNoDesc").textContent = "Predict missing cms directly. Real monthly seasonality preserved on observed months.";
   } else {
     $("#popQuestion").textContent = "Do you have reference population data?";
     $("#popHelp").innerHTML = `If population data is available, the platform will compute litres-per-capita-per-day (LPCD) and use it to
@@ -1142,26 +1244,41 @@ function applyStep4Copy() {
 }
 
 function applyStep5Copy() {
+  const isAgriDisagg = STATE.category === "agriculture" && STATE.popMode === "with";
   const cat = STATE.category === "agriculture" ? "Crop planted/harvested"
             : STATE.category === "riverflow"   ? "River flow (cms)"
             : "Water demand";
-  $("#mainLabel").textContent = `${cat} dataset`;
+  $("#mainLabel").textContent = isAgriDisagg ? "Parent-area crop totals" : `${cat} dataset`;
   const helpBits = [
     "Provide a wide-format CSV/XLSX (Year, Month, Loc1, Loc2, …). Empty cells are treated as missing values."
   ];
-  if (STATE.category === "riverflow") {
-    helpBits.push("Discharge values will be auto-converted from cms (m³/s) to monthly m³ before gap-filling.");
+  if (isAgriDisagg) {
+    helpBits.push("The main file holds the parent-area crop totals; the second file is the land-area table.");
   }
-  if (STATE.timeframe === "projected") {
+  if (STATE.category === "riverflow") {
+    helpBits.push("Discharge stays in cms (m³/s); only missing months and years are predicted.");
+  }
+  if (STATE.timeframe === "projected" || STATE.timeframe === "both") {
     helpBits.push("Output horizon will extend to 2050 using fitted trend extrapolation.");
   }
-  if (STATE.popMode === "with") {
+  if (STATE.category === "water" && STATE.popMode === "with") {
     helpBits.push("Upload the matching population/reference file in the second slot.");
   }
   $("#uploadHelp").innerHTML = helpBits.join(" ");
-  // Toggle second upload slot.
+
+  // Adapt the second-slot labels (land-area table vs population/reference).
+  if (isAgriDisagg) {
+    $("#popLabel").textContent = "Land-area table (Area, hectares)";
+    $("#popSecondary").textContent = "Two columns: area name + land area in ha. A header row is skipped automatically.";
+  } else {
+    $("#popLabel").textContent = "Population / Reference dataset";
+    $("#popSecondary").textContent = "Same wide format · matching Year/Month/Location columns";
+  }
+
+  // Toggle second upload slot + the parent-total input (agri disaggregation only).
   const popZone = $("#dropzonePop");
   const row = $("#uploadRow");
+  $("#parentTotalWrap").classList.toggle("hidden", !isAgriDisagg);
   if (STATE.popMode === "with") {
     popZone.classList.remove("hidden");
     row.classList.remove("single");
@@ -1181,8 +1298,9 @@ function selectOpt(el) {
   if (key === "popMode") applyStep5Copy();
   if (key === "timeframe") {
     // Pre-set horizon (visual cue purposes).
-    STATE.rangeStart = STATE.timeframe === "projected" ? HORIZON_PROJECTED.start : HORIZON_CURRENT.start;
-    STATE.rangeEnd   = STATE.timeframe === "projected" ? HORIZON_PROJECTED.end   : HORIZON_CURRENT.end;
+    const h = horizonFor(STATE.timeframe);
+    STATE.rangeStart = h.start;
+    STATE.rangeEnd   = h.end;
   }
   refreshNextButtons();
 }
@@ -1209,12 +1327,15 @@ function attachStepNav() {
 function resetAll() {
   STATE.category = STATE.timeframe = STATE.granularity = STATE.popMode = null;
   STATE.fileMain = STATE.filePop = null;
+  STATE.parentTotalHa = null;
   STATE.results = null;
   $$(".opt").forEach(o => o.classList.remove("selected"));
   $("#mainPill").innerHTML = "";
   $("#popPill").innerHTML  = "";
   $("#fileMain").value = "";
   $("#filePop").value  = "";
+  if ($("#parentTotalHa")) $("#parentTotalHa").value = "";
+  $("#parentTotalWrap").classList.add("hidden");
   $("#resultsSection").classList.add("hidden");
   $("#processingSection").classList.add("hidden");
   updateStepper(1);
@@ -1295,6 +1416,14 @@ function boot() {
     setPill($("#popPill"), f, true);
     refreshRunButton();
   });
+
+  const parentInput = $("#parentTotalHa");
+  if (parentInput) {
+    parentInput.addEventListener("input", (e) => {
+      const v = parseFloat(e.target.value);
+      STATE.parentTotalHa = (!isNaN(v) && v > 0) ? v : null;
+    });
+  }
 
   $("#runBtn").addEventListener("click", executeRun);
 
