@@ -1396,7 +1396,7 @@ function bindDropzone(zoneEl, inputEl, pillEl, onFile) {
 }
 
 function setPill(pillEl, file, ok = true) {
-  pillEl.innerHTML = `<span class="file-pill ${ok ? "" : "error"}">📄 ${file.name} · ${(file.size / 1024).toFixed(1)} KB</span>`;
+  pillEl.innerHTML = `<span class="file-pill ${ok ? "" : "error"}"><svg class="icon-svg" style="width:15px;height:15px"><use href="#i-file-text"/></svg>${escapeHtml(file.name)} · ${(file.size / 1024).toFixed(1)} KB</span>`;
 }
 
 //=========================================================================

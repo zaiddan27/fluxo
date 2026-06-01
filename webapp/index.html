@@ -616,6 +616,22 @@
     margin-bottom: 12px;
     color: var(--eco-forest-deep);
   }
+
+  /* Line-icon system (inline SVG sprite, currentColor stroke) */
+  .icon-svg {
+    width: 1em; height: 1em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    display: block;
+    flex: none;
+  }
+  .opt .opt-icon .icon-svg { width: 20px; height: 20px; }
+  .dropzone .ico .icon-svg { width: 26px; height: 26px; }
+  .mission-card .icon .icon-svg { width: 24px; height: 24px; }
+  .btn .icon-svg { width: 16px; height: 16px; }
   .opt .opt-title {
     font-family: 'Fraunces', serif;
     font-size: 1.05rem;
@@ -1082,6 +1098,42 @@
     .footer-inner { grid-template-columns: 1fr; gap: 24px; }
   }
 
+  /*=========================================================================
+    MOBILE RESPONSIVENESS
+  =========================================================================*/
+  @media (max-width: 760px) {
+    section.canvas { padding: 48px 18px; }
+    .wizard { padding: 24px 18px; }
+    .hero { padding: 48px 18px 32px; }
+    .hero-text { padding: 26px 22px 24px; }
+    /* Let wizard nav buttons wrap instead of overflowing */
+    .step-nav { flex-wrap: wrap; gap: 12px; }
+    .step-nav .right { flex-wrap: wrap; justify-content: flex-end; }
+    .btn { padding: 11px 18px; }
+  }
+  @media (max-width: 560px) {
+    .topnav-inner { gap: 12px; padding: 12px 16px; }
+    .brand-mini .brand-sub { display: none; }      /* keep the nav compact */
+    .hero-lede { font-size: 1rem; }
+    .hero-meta { grid-template-columns: 1fr 1fr; gap: 12px; }
+    .floater.f2 { display: none; }                 /* reduce clutter on the small hero */
+    /* Stepper: numbered bubbles + progress line carry the state;
+       show only the current step's label so 5 steps never crowd. */
+    .stepper { gap: 4px; margin-bottom: 26px; }
+    .stepper::before { left: 9%; right: 9%; top: 14px; }
+    .step .bubble { width: 30px; height: 30px; font-size: 0.85rem; }
+    .step .lbl { display: none; }
+    .step.active .lbl { display: block; font-size: 0.72rem; }
+    .step-q { font-size: 1.18rem; }
+    .opt { padding: 18px 18px 16px; }
+    .dropzone { padding: 32px 16px; }
+    .wizard { padding: 20px 14px; }
+  }
+  @media (max-width: 380px) {
+    .hero-meta { grid-template-columns: 1fr; }
+    .btn { padding: 11px 14px; font-size: 0.86rem; }
+  }
+
   /* Print */
   @media print {
     .topnav, .hero-actions, .step-nav, .stepper, .dropzone, footer { display: none; }
@@ -1100,6 +1152,29 @@
 </style>
 </head>
 <body>
+
+<!-- ===================== ICON SPRITE (Lucide-style line icons) ===================== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+    <symbol id="i-trending-up" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
+    <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-sprout" viewBox="0 0 24 24"><path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/></symbol>
+    <symbol id="i-droplet" viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></symbol>
+    <symbol id="i-waves" viewBox="0 0 24 24"><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></symbol>
+    <symbol id="i-calendar-days" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></symbol>
+    <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></symbol>
+    <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></symbol>
+  </defs>
+</svg>
 
 <div class="atmosphere" aria-hidden="true"></div>
 <div class="particles" aria-hidden="true">
@@ -1207,22 +1282,22 @@
   </p>
   <div class="mission-grid">
     <div class="glass mission-card">
-      <div class="icon">◐</div>
+      <div class="icon"><svg class="icon-svg"><use href="#i-history"/></svg></div>
       <h3>Reconstruct the past</h3>
       <p>Fill missing pre-observation years using station-substitution (Hirsch 1982) and the longest available template series in your dataset.</p>
     </div>
     <div class="glass mission-card">
-      <div class="icon">◈</div>
+      <div class="icon"><svg class="icon-svg"><use href="#i-trending-up"/></svg></div>
       <h3>Project the future</h3>
       <p>Extend any record to 2050 using fitted trend models with empirically calibrated 90% prediction intervals.</p>
     </div>
     <div class="glass mission-card">
-      <div class="icon">◇</div>
+      <div class="icon"><svg class="icon-svg"><use href="#i-shield-check"/></svg></div>
       <h3>Honest uncertainty</h3>
       <p>Every imputed value is tagged with a confidence tier. The tool refuses to fabricate when no defensible estimate exists.</p>
     </div>
     <div class="glass mission-card">
-      <div class="icon">◯</div>
+      <div class="icon"><svg class="icon-svg"><use href="#i-lock"/></svg></div>
       <h3>Your data, your device</h3>
       <p>All computation runs locally. No file leaves your browser, no server processes your inputs — privacy by architecture.</p>
     </div>
@@ -1253,17 +1328,17 @@
       <div class="step-help">Choose the domain of your dataset. This determines the variable, units, and interpretation logic the platform will apply.</div>
       <div class="opt-grid">
         <div class="opt" data-key="category" data-value="agriculture">
-          <div class="opt-icon">🌾</div>
+          <div class="opt-icon"><svg class="icon-svg"><use href="#i-sprout"/></svg></div>
           <div class="opt-title">Agricultural Crop Planted / Harvested</div>
           <div class="opt-desc">Hectares planted or harvested per location. Prediction emphasis when data is sparse.</div>
         </div>
         <div class="opt" data-key="category" data-value="water">
-          <div class="opt-icon">💧</div>
+          <div class="opt-icon"><svg class="icon-svg"><use href="#i-droplet"/></svg></div>
           <div class="opt-title">Urban Water Use</div>
           <div class="opt-desc">Water demand in cubic metres (m³) per water district or LGU.</div>
         </div>
         <div class="opt" data-key="category" data-value="riverflow">
-          <div class="opt-icon">🌊</div>
+          <div class="opt-icon"><svg class="icon-svg"><use href="#i-waves"/></svg></div>
           <div class="opt-title">River Flow / Streamflow</div>
           <div class="opt-desc">Discharge in cms (m³/s) per gauging station. Only the missing cms values are predicted; real monthly seasonality preserved.</div>
         </div>
@@ -1282,17 +1357,17 @@
       <div class="step-help">Select whether you want to reconstruct historical records or generate forward projections.</div>
       <div class="opt-grid">
         <div class="opt" data-key="timeframe" data-value="current">
-          <div class="opt-icon">🕰️</div>
+          <div class="opt-icon"><svg class="icon-svg"><use href="#i-clock"/></svg></div>
           <div class="opt-title">Current Data (2000–2024)</div>
           <div class="opt-desc">Gap-fill missing historical years using station-substitution against the longest record in your file.</div>
         </div>
         <div class="opt" data-key="timeframe" data-value="projected">
-          <div class="opt-icon">📈</div>
+          <div class="opt-icon"><svg class="icon-svg"><use href="#i-trending-up"/></svg></div>
           <div class="opt-title">Projected Data (2025–2050)</div>
           <div class="opt-desc">Extend your observed series forward using a fitted trend model with calibrated 90% intervals.</div>
         </div>
         <div class="opt" data-key="timeframe" data-value="both">
-          <div class="opt-icon">🔭</div>
+          <div class="opt-icon"><svg class="icon-svg"><use href="#i-layers"/></svg></div>
           <div class="opt-title">Both (2000–2050)</div>
           <div class="opt-desc">Full horizon — reconstruct missing historical years and project forward to 2050 in one continuous series.</div>
         </div>
@@ -1311,12 +1386,12 @@
       <div class="step-help">Choose the time resolution of your output table. Monthly output is derived from annual figures divided by 12 (the source data has no intra-year seasonality).</div>
       <div class="opt-grid">
         <div class="opt" data-key="granularity" data-value="annual">
-          <div class="opt-icon">📅</div>
+          <div class="opt-icon"><svg class="icon-svg"><use href="#i-calendar"/></svg></div>
           <div class="opt-title">Annual</div>
           <div class="opt-desc">One row per year per location.</div>
         </div>
         <div class="opt" data-key="granularity" data-value="monthly">
-          <div class="opt-icon">🗓</div>
+          <div class="opt-icon"><svg class="icon-svg"><use href="#i-calendar-days"/></svg></div>
           <div class="opt-title">Monthly</div>
           <div class="opt-desc">Twelve rows per year per location — annual ÷ 12 broadcast across months.</div>
         </div>
@@ -1339,12 +1414,12 @@
       </div>
       <div class="opt-grid">
         <div class="opt" data-key="popMode" data-value="with">
-          <div class="opt-icon">🧮</div>
+          <div class="opt-icon"><svg class="icon-svg"><use href="#i-sliders"/></svg></div>
           <div class="opt-title" id="popYesTitle">Yes — I will upload population data</div>
           <div class="opt-desc" id="popYesDesc">Per-capita normalization. A second upload slot will appear in the next step.</div>
         </div>
         <div class="opt" data-key="popMode" data-value="without">
-          <div class="opt-icon">📄</div>
+          <div class="opt-icon"><svg class="icon-svg"><use href="#i-file-text"/></svg></div>
           <div class="opt-title" id="popNoTitle">No — work directly with the values</div>
           <div class="opt-desc" id="popNoDesc">Direct station-substitution and trend extrapolation, no per-capita step.</div>
         </div>
@@ -1368,7 +1443,7 @@
       <div class="upload-row single" id="uploadRow">
         <label class="dropzone" id="dropzoneMain">
           <input type="file" id="fileMain" accept=".csv,.xlsx,.xls" />
-          <div class="ico">📤</div>
+          <div class="ico"><svg class="icon-svg"><use href="#i-upload"/></svg></div>
           <p class="primary" id="mainLabel">Demand / Crop dataset</p>
           <p class="secondary">Click to choose or drag-and-drop · CSV, XLSX, XLS · ≤ 10 MB</p>
           <div id="mainPill"></div>
@@ -1376,7 +1451,7 @@
 
         <label class="dropzone hidden" id="dropzonePop">
           <input type="file" id="filePop" accept=".csv,.xlsx,.xls" />
-          <div class="ico">📎</div>
+          <div class="ico"><svg class="icon-svg"><use href="#i-paperclip"/></svg></div>
           <p class="primary" id="popLabel">Population / Reference dataset</p>
           <p class="secondary" id="popSecondary">Same wide format · matching Year/Month/Location columns</p>
           <div id="popPill"></div>
@@ -1401,7 +1476,7 @@
           <button class="btn btn-ghost" data-action="back">← Back</button>
           <div class="right">
             <button class="btn btn-ghost" data-action="reset">↺ Start over</button>
-            <button class="btn btn-primary" id="runBtn" disabled>Run analysis ✨</button>
+            <button class="btn btn-primary" id="runBtn" disabled>Run analysis</button>
           </div>
         </div>
       </div>
@@ -1422,9 +1497,9 @@
     <div class="summary-grid" id="summaryGrid"></div>
 
     <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 24px;">
-      <button class="btn btn-primary" id="downloadBtn">📥 Download filled CSV</button>
-      <button class="btn btn-ghost"   id="copyBtn">📋 Copy to clipboard</button>
-      <button class="btn btn-sun"     id="downloadReportBtn">📄 Download HTML report</button>
+      <button class="btn btn-primary" id="downloadBtn"><svg class="icon-svg"><use href="#i-download"/></svg> Download filled CSV</button>
+      <button class="btn btn-ghost"   id="copyBtn"><svg class="icon-svg"><use href="#i-clipboard"/></svg> Copy to clipboard</button>
+      <button class="btn btn-sun"     id="downloadReportBtn"><svg class="icon-svg"><use href="#i-file-text"/></svg> Download HTML report</button>
     </div>
 
     <div id="resultsContainer"></div>
