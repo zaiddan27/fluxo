@@ -1282,17 +1282,17 @@
       <div class="step-help">Select whether you want to reconstruct historical records or generate forward projections.</div>
       <div class="opt-grid">
         <div class="opt" data-key="timeframe" data-value="current">
-          <div class="opt-icon">◐</div>
+          <div class="opt-icon">🕰️</div>
           <div class="opt-title">Current Data (2000–2024)</div>
           <div class="opt-desc">Gap-fill missing historical years using station-substitution against the longest record in your file.</div>
         </div>
         <div class="opt" data-key="timeframe" data-value="projected">
-          <div class="opt-icon">◈</div>
+          <div class="opt-icon">📈</div>
           <div class="opt-title">Projected Data (2025–2050)</div>
           <div class="opt-desc">Extend your observed series forward using a fitted trend model with calibrated 90% intervals.</div>
         </div>
         <div class="opt" data-key="timeframe" data-value="both">
-          <div class="opt-icon">◉</div>
+          <div class="opt-icon">🔭</div>
           <div class="opt-title">Both (2000–2050)</div>
           <div class="opt-desc">Full horizon — reconstruct missing historical years and project forward to 2050 in one continuous series.</div>
         </div>
@@ -1339,12 +1339,12 @@
       </div>
       <div class="opt-grid">
         <div class="opt" data-key="popMode" data-value="with">
-          <div class="opt-icon">✓</div>
+          <div class="opt-icon">🧮</div>
           <div class="opt-title" id="popYesTitle">Yes — I will upload population data</div>
           <div class="opt-desc" id="popYesDesc">Per-capita normalization. A second upload slot will appear in the next step.</div>
         </div>
         <div class="opt" data-key="popMode" data-value="without">
-          <div class="opt-icon">○</div>
+          <div class="opt-icon">📄</div>
           <div class="opt-title" id="popNoTitle">No — work directly with the values</div>
           <div class="opt-desc" id="popNoDesc">Direct station-substitution and trend extrapolation, no per-capita step.</div>
         </div>
@@ -1368,7 +1368,7 @@
       <div class="upload-row single" id="uploadRow">
         <label class="dropzone" id="dropzoneMain">
           <input type="file" id="fileMain" accept=".csv,.xlsx,.xls" />
-          <div class="ico">⬆</div>
+          <div class="ico">📤</div>
           <p class="primary" id="mainLabel">Demand / Crop dataset</p>
           <p class="secondary">Click to choose or drag-and-drop · CSV, XLSX, XLS · ≤ 10 MB</p>
           <div id="mainPill"></div>
@@ -1376,7 +1376,7 @@
 
         <label class="dropzone hidden" id="dropzonePop">
           <input type="file" id="filePop" accept=".csv,.xlsx,.xls" />
-          <div class="ico">◯</div>
+          <div class="ico">📎</div>
           <p class="primary" id="popLabel">Population / Reference dataset</p>
           <p class="secondary" id="popSecondary">Same wide format · matching Year/Month/Location columns</p>
           <div id="popPill"></div>
@@ -1422,8 +1422,8 @@
     <div class="summary-grid" id="summaryGrid"></div>
 
     <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 24px;">
-      <button class="btn btn-primary" id="downloadBtn">⬇ Download filled CSV</button>
-      <button class="btn btn-ghost"   id="copyBtn">⧉ Copy to clipboard</button>
+      <button class="btn btn-primary" id="downloadBtn">📥 Download filled CSV</button>
+      <button class="btn btn-ghost"   id="copyBtn">📋 Copy to clipboard</button>
       <button class="btn btn-sun"     id="downloadReportBtn">📄 Download HTML report</button>
     </div>
 

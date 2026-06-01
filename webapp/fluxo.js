@@ -65,6 +65,23 @@ const TIERS = {
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// Build an annotated error that the run handler renders gracefully:
+// a plain-language message, an optional "what to do" hint, and an optional
+// example of the expected file layout.
+function userError(message, hint, example) {
+  const e = new Error(message);
+  e.userFacing = true;
+  e.hint = hint || null;
+  e.example = example || null;
+  return e;
+}
+
 function median(arr) {
   const s = [...arr].sort((a, b) => a - b);
   const n = s.length;
@@ -168,12 +185,22 @@ function extractSeries(rows) {
     }
     if (headerIdx >= 0) break;
   }
-  if (headerIdx < 0) throw new Error("Could not find a header row containing 'Year'. Make sure the file has a 'Year' column.");
+  const WIDE_EXAMPLE =
+`Year, Month, Location A, Location B
+2010, 1, 12.5, 8.3
+2010, 2, 13.1, 8.0`;
+  if (headerIdx < 0) throw userError(
+    "We couldn't find a “Year” column in this file.",
+    "Fluxo reads wide-format tables. The header row needs a column named <strong>Year</strong> (a <strong>Month</strong> column is optional), followed by one column per location. A leading <code>;</code> on the first header cell is fine. Check that you uploaded the data file — not a chart, summary, or land-area table — and that the header isn’t buried below row 10.",
+    WIDE_EXAMPLE);
 
   const header = rows[headerIdx].map(c => c == null ? "" : String(c).replace(/^[;\s]+|[\s]+$/g, "").trim());
   const yearCol = header.findIndex(c => c.toLowerCase().includes("year"));
   const monthCol = header.findIndex(c => c.toLowerCase().includes("month"));
-  if (yearCol < 0) throw new Error("No 'Year' column found.");
+  if (yearCol < 0) throw userError(
+    "We found a header row, but no “Year” column in it.",
+    "Rename one of your columns to <strong>Year</strong> (four-digit years between 1900 and 2100).",
+    WIDE_EXAMPLE);
 
   // All remaining non-empty header columns are location series.
   const locCols = [];
@@ -182,7 +209,10 @@ function extractSeries(rows) {
     if (!header[i] || header[i].trim() === "") continue;
     locCols.push({ name: cleanLocationName(header[i]), colIdx: i });
   }
-  if (locCols.length === 0) throw new Error("No location columns detected after Year/Month.");
+  if (locCols.length === 0) throw userError(
+    "Your file has a Year column but no data columns next to it.",
+    "Add at least one value column to the right of Year/Month — one per location (e.g. a crop, water district, or gauging station). Each becomes its own result series.",
+    WIDE_EXAMPLE);
 
   // Walk data rows.
   const byLoc = {};
@@ -350,7 +380,7 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
   // Observed years for this series.
   const ys = Object.keys(s.annual).map(Number).filter(y => s.annual[y].annual != null).sort((a, b) => a - b);
   if (!ys.length) {
-    return { supported: false, name: s.name, reason: "No observed values found in this column." };
+    return { supported: false, name: s.name, reason: "This column has no numeric values, so there's nothing to gap-fill or project. Add at least one observed value, or remove the empty column." };
   }
   const firstObs = ys[0];
   const lastObs  = ys[ys.length - 1];
@@ -643,9 +673,15 @@ async function runPipeline() {
     // Main file holds the parent-area crop totals (each value column = a crop);
     // the second file is a land-area table used to split them by share.
     const parentSeries = extractSeries(mainRows);
-    if (!STATE.filePop) throw new Error("Disaggregation needs a land-area table in the second upload slot.");
+    if (!STATE.filePop) throw userError(
+      "Disaggregation needs a land-area table in the second upload slot.",
+      "Add a CSV/XLSX with two columns — area name and land area in hectares — then run again. Or go back to Step 4 and pick “I already have per-location values” to skip disaggregation.",
+      "Area, Land area (ha)\nDoña Remedios Trinidad, 93296\nNorzagaray, 30977");
     const land = parseLandTable(await parseFile(STATE.filePop));
-    if (!land.length) throw new Error("No usable rows found in the land-area table (expected: Area, Land area in ha).");
+    if (!land.length) throw userError(
+      "We couldn't read any areas from the land-area table.",
+      "Use exactly two columns — the area name and its land area in hectares. A header row is fine and will be skipped; numbers may include commas (e.g. 93,296).",
+      "Area, Land area (ha)\nDoña Remedios Trinidad, 93296\nNorzagaray, 30977");
     mainSeries = disaggregateByLandArea(parentSeries, land, STATE.parentTotalHa);
   } else {
     mainSeries = extractSeries(mainRows);
@@ -1383,14 +1419,38 @@ async function executeRun() {
     $("#resultsSection").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
     $("#processingSection").classList.add("hidden");
-    const div = document.createElement("div");
-    div.className = "alert alert-err";
-    div.innerHTML = `<strong>Pipeline error:</strong> ${err.message}`;
-    $("#runZone").appendChild(div);
+    showRunError(err);
     console.error(err);
   } finally {
     refreshRunButton();
   }
+}
+
+// Render a friendly, actionable error in the run zone.
+function showRunError(err) {
+  $$("#runZone .alert-err").forEach(el => el.remove()); // clear previous
+  const fileName = (STATE.fileMain && STATE.fileMain.name) ? ` (${escapeHtml(STATE.fileMain.name)})` : "";
+  const message = err && err.userFacing
+    ? escapeHtml(err.message)
+    : `Something went wrong while reading your file${fileName}.`;
+  const hint = err && err.hint
+    ? err.hint
+    : "Please upload a CSV or XLSX in the wide format shown in Step 5. If the problem persists, check that the file isn’t empty, password-protected, or a different export than expected.";
+
+  let html = `<strong>We couldn’t run the analysis.</strong>` +
+             `<div style="margin-top:6px;">${message}</div>` +
+             `<div style="margin-top:8px;">${hint}</div>`;
+  if (err && err.example) {
+    html += `<div style="margin-top:10px; font-weight:600;">Expected layout</div>` +
+            `<pre style="margin-top:4px; padding:10px 12px; border-radius:8px; ` +
+            `background:rgba(0,0,0,0.05); overflow:auto; font-size:0.82rem; line-height:1.5;">` +
+            `${escapeHtml(err.example)}</pre>`;
+  }
+  const div = document.createElement("div");
+  div.className = "alert alert-err";
+  div.innerHTML = html;
+  $("#runZone").appendChild(div);
+  div.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 //=========================================================================
