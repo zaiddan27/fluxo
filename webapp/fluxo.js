@@ -22,6 +22,7 @@ const STATE = {
   fileMain: null,
   filePop:  null,
   parentTotalHa: null, // agri disaggregation: parent (province/region) total land area in ha
+  datasetLabel: "",    // group/municipality label captured from the uploaded file (annual export row 1)
   results:  null,
   rangeStart: 2000,
   rangeEnd:   2024     // updated per timeframe choice
@@ -170,6 +171,29 @@ function rowsToMatrix(rows) {
 function cleanLocationName(raw) {
   if (raw == null) return null;
   return String(raw).replace(/^[\s;,]+|[\s;,]+$/g, "").trim();
+}
+
+// Capture the group/municipality label that sits above the Year header row
+// (e.g. "DRT" in the source annual files). Used as the row-1 label on the
+// annual export. Returns "" when the header is the first row or none found.
+function findGroupLabel(rows) {
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const r = rows[i];
+    if (r && r.some(c => c != null && String(c).toLowerCase().replace(/[;\s]/g, "").includes("year"))) {
+      headerIdx = i; break;
+    }
+  }
+  if (headerIdx <= 0) return "";
+  for (let i = 0; i < headerIdx; i++) {
+    const r = rows[i];
+    if (!r) continue;
+    for (const c of r) {
+      const v = c == null ? "" : String(c).replace(/^[;\s]+|[\s]+$/g, "").trim();
+      if (v && !/year|month/i.test(v)) return v;
+    }
+  }
+  return "";
 }
 
 function extractSeries(rows) {
@@ -668,6 +692,7 @@ async function runPipeline() {
 
   // Parse main file.
   const mainRows = await parseFile(STATE.fileMain);
+  STATE.datasetLabel = findGroupLabel(mainRows);
   let mainSeries;
   if (isAgriDisagg) {
     // Main file holds the parent-area crop totals (each value column = a crop);
@@ -1032,13 +1057,36 @@ function buildFilledCsv(results) {
   const supported = results.filter(r => r.supported);
   if (!supported.length) return "";
 
+  const locNames = supported.map(r => r.name);
+  const byName = {};
+  for (const r of supported) byName[r.name] = r;
+
+  // ---- Annual: tab-delimited wide yearly layout mirroring the source annual
+  // files. 3-row header (group label, blank, ;Year + series), NO Month column,
+  // one row per year. ----
+  if (STATE.granularity === "annual") {
+    const T = "\t";
+    const N = locNames.length;
+    const row1 = [";", STATE.datasetLabel || "", ...Array(Math.max(0, N - 1)).fill("")].join(T);
+    const row2 = [";", ...Array(N).fill("")].join(T);
+    const row3 = [";Year", ...locNames.map(tsvCell)].join(T);
+    const lines = [row1, row2, row3];
+    for (let y = STATE.rangeStart; y <= STATE.rangeEnd; y++) {
+      const vals = locNames.map(n => {
+        const row = byName[n].rows[y];
+        return row ? fmtAnnualValue(row.value_mean) : "";
+      });
+      lines.push([y, ...vals].join(T));
+    }
+    return lines.join("\n");
+  }
+
+  // ---- Monthly: comma-delimited wide layout with a per-location units row. ----
   // Output unit per category: River Flow → cms, Urban Water Use → m³,
   // Agriculture → hectares.
   const unit = STATE.category === "agriculture" ? "ha"
              : STATE.category === "riverflow"   ? "cms"
              : "m3";
-  const locNames = supported.map(r => r.name);
-
   // Row 1: ";" + N+1 commas ⇒ N+2 cells, all empty (first cell is just ";")
   const emptyHeader1 = ";" + ",".repeat(1 + locNames.length);
   // Row 2: ";,," + per-location unit cells ⇒ Year & Month placeholders blank, unit on each loc
@@ -1047,10 +1095,6 @@ function buildFilledCsv(results) {
   const headerRow = ";Year,Month," + locNames.map(csvEscape).join(",");
 
   const lines = [emptyHeader1, unitsRow, headerRow];
-
-  // Index supported series by name.
-  const byName = {};
-  for (const r of supported) byName[r.name] = r;
 
   // Year range from STATE; for each year, emit 12 monthly rows.
   for (let y = STATE.rangeStart; y <= STATE.rangeEnd; y++) {
@@ -1071,6 +1115,20 @@ function csvEscape(s) {
   if (s == null) return "";
   const v = String(s);
   return /[,";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+// Tab-delimited cell — strip any tabs/newlines that would break the column grid.
+function tsvCell(s) {
+  return String(s == null ? "" : s).replace(/[\t\r\n]/g, " ");
+}
+
+// Annual CSV value: round to 4 dp, then strip trailing zeros (matches the
+// precision/formatting of the source annual datasets, e.g. 24452.7090 → 24452.709).
+function fmtAnnualValue(v) {
+  if (v == null || isNaN(v)) return "";
+  let s = v.toFixed(4);
+  if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+  return s;
 }
 
 function buildLongCsv(results) {
@@ -1110,26 +1168,37 @@ function downloadBlob(content, filename, type) {
 }
 
 function copyTableToClipboard(results) {
-  // Tab-separated for paste into Excel — strict wide format mirroring the CSV.
+  // Tab-separated for paste into Excel — matches the chosen granularity.
   const supported = results.filter(r => r.supported);
   const locNames = supported.map(r => r.name);
-  const lines = ["Year\tMonth\t" + locNames.join("\t")];
   const byName = {};
   for (const r of supported) byName[r.name] = r;
-  for (let y = STATE.rangeStart; y <= STATE.rangeEnd; y++) {
-    for (let m = 1; m <= 12; m++) {
+  let lines;
+  if (STATE.granularity === "annual") {
+    lines = ["Year\t" + locNames.map(tsvCell).join("\t")];
+    for (let y = STATE.rangeStart; y <= STATE.rangeEnd; y++) {
       const vals = locNames.map(n => {
-        const r = byName[n];
-        const row = r.rows[y];
-        const v = monthlyValueFor(r, row, m);
-        return v == null ? "" : v.toFixed(2);
+        const row = byName[n].rows[y];
+        return row ? fmtAnnualValue(row.value_mean) : "";
       });
-      lines.push(`${y}\t${m}\t${vals.join("\t")}`);
+      lines.push(`${y}\t${vals.join("\t")}`);
+    }
+  } else {
+    lines = ["Year\tMonth\t" + locNames.map(tsvCell).join("\t")];
+    for (let y = STATE.rangeStart; y <= STATE.rangeEnd; y++) {
+      for (let m = 1; m <= 12; m++) {
+        const vals = locNames.map(n => {
+          const r = byName[n];
+          const v = monthlyValueFor(r, r.rows[y], m);
+          return v == null ? "" : v.toFixed(2);
+        });
+        lines.push(`${y}\t${m}\t${vals.join("\t")}`);
+      }
     }
   }
   const text = lines.join("\n");
   navigator.clipboard.writeText(text).then(() => {
-    alert(`Copied ${lines.length - 1} rows × ${locNames.length} locations to clipboard.`);
+    alert(`Copied ${lines.length - 1} rows × ${locNames.length} ${locNames.length === 1 ? "series" : "series"} to clipboard.`);
   }).catch(err => alert("Copy failed: " + err.message));
 }
 
@@ -1364,6 +1433,7 @@ function resetAll() {
   STATE.category = STATE.timeframe = STATE.granularity = STATE.popMode = null;
   STATE.fileMain = STATE.filePop = null;
   STATE.parentTotalHa = null;
+  STATE.datasetLabel = "";
   STATE.results = null;
   $$(".opt").forEach(o => o.classList.remove("selected"));
   $("#mainPill").innerHTML = "";
