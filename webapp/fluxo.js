@@ -521,14 +521,19 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
       const norm_mean = trend.intercept + trend.slope * y;
       const norm_lo = norm_mean - Z90 * trend.seResid;
       const norm_hi = norm_mean + Z90 * trend.seResid;
-      const val_mean = fromNorm(norm_mean, y);
-      const val_lo   = fromNorm(norm_lo, y);
-      const val_hi   = fromNorm(norm_hi, y);
+      // Areas, water volumes and river flow are non-negative physical quantities;
+      // a declining OLS trend can push the extrapolation below zero, which is
+      // unphysical. Floor every projected figure at 0 (matching the source data,
+      // where forecast values bottom out at 0 rather than going negative).
+      const nonNeg  = (v) => (v == null ? null : Math.max(0, v));
+      const val_mean = nonNeg(fromNorm(norm_mean, y));
+      const val_lo   = nonNeg(fromNorm(norm_lo, y));
+      const val_hi   = nonNeg(fromNorm(norm_hi, y));
       if (val_mean != null) {
         rows[y] = {
           year: y,
           value_mean: val_mean,
-          value_lower90: Math.max(0, val_lo),
+          value_lower90: val_lo,
           value_upper90: val_hi,
           monthly_mean: val_mean / 12,
           flag: "forecast",
