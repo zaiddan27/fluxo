@@ -350,6 +350,77 @@ function annualize(records) {
 }
 
 //-------------------------------------------------------------------------
+// Agriculture annualiser — area planted (ha). Per the agri methodology, the
+// annual figure is the SUM of the monthly values; per-month values are
+// preserved so the Seasonal Mean Ratio (SMR) and real seasonality survive.
+// Annual-only files (one row per year, no Month) keep that single value as the
+// annual total.
+//-------------------------------------------------------------------------
+function annualizeAgri(records) {
+  const byYear = {};
+  for (const rec of records) {
+    if (!byYear[rec.year]) byYear[rec.year] = { months: {}, vals: [] };
+    if (rec.value != null) { byYear[rec.year].months[rec.month] = rec.value; byYear[rec.year].vals.push(rec.value); }
+  }
+  const annual = {};
+  for (const y of Object.keys(byYear)) {
+    const o = byYear[+y];
+    if (o.vals.length === 0) { annual[+y] = { monthly_mean: null, annual: null, monthly_vals: null }; continue; }
+    const isMonthly = o.vals.length >= 6;          // monthly file vs annual file
+    const ann = isMonthly ? o.vals.reduce((a, b) => a + b, 0) : mean(o.vals);
+    annual[+y] = { annual: ann, monthly_mean: ann / 12, monthly_vals: isMonthly ? o.months : null };
+  }
+  return annual;
+}
+
+// Seasonal Mean Ratio (Makridakis-Wheelwright-Hyndman 1998): how each calendar
+// month compares to the average month, over clean (non-gap) observed years.
+// Normalised so the 12 indices sum to exactly 12. SMR_m × (annual/12) rebuilds
+// a month. Returns null when there is no monthly seasonality to learn.
+function computeSMR(annualBy) {
+  const sums = Array(12).fill(0), counts = Array(12).fill(0);
+  let sawMonthly = false;
+  for (const y of Object.keys(annualBy)) {
+    const row = annualBy[+y];
+    if (!row || !row.monthly_vals || row.annual == null || row.annual <= 0) continue;
+    sawMonthly = true;
+    const meanMonth = row.annual / 12;
+    if (meanMonth <= 0) continue;
+    for (let m = 1; m <= 12; m++) {
+      if (row.monthly_vals[m] != null) { sums[m - 1] += row.monthly_vals[m] / meanMonth; counts[m - 1] += 1; }
+    }
+  }
+  if (!sawMonthly) return null;
+  const raw = sums.map((s, i) => (counts[i] > 0 ? s / counts[i] : 1));
+  const avg = raw.reduce((a, b) => a + b, 0) / 12 || 1;
+  return raw.map(v => v / avg);   // mean 1 ⇒ sum 12
+}
+
+// Geometric (compound) growth rate r for the area-planted projection
+// A_t = A_0 × r^(t−base). Fitted as the standard log-linear growth model
+// (r = e^slope of ln(annual) vs year) over clean years with positive area.
+//
+// The reference projections fit r at the *provincial* level (stable, all crops
+// 1.010–1.012/yr) and apply it to a reconciled group base. A single group's
+// short, volatile record cannot support a reliable 25-year rate — an unbounded
+// fit explodes or collapses (e.g. a noisy crop fitting +11%/yr ⇒ 14× by 2050).
+// So the fitted rate is clamped to a plausible agronomic band; the geometric
+// model and SMR distribution are preserved, but divergence is prevented.
+const GEO_RATE_MIN = 0.98;   // ≤ −2%/yr
+const GEO_RATE_MAX = 1.02;   // ≥ +2%/yr
+function geometricRate(annualBy) {
+  const yrs = [], lnv = [];
+  for (const y of Object.keys(annualBy)) {
+    const a = annualBy[+y].annual;
+    if (a != null && a > 0) { yrs.push(+y); lnv.push(Math.log(a)); }
+  }
+  if (yrs.length < 2) return 1;
+  const o = ols(yrs, lnv);
+  if (!o) return 1;
+  return Math.min(GEO_RATE_MAX, Math.max(GEO_RATE_MIN, Math.exp(o.slope)));
+}
+
+//-------------------------------------------------------------------------
 // River-flow annualiser — stays in cms (m³/s). The per-year "level" is the
 // mean of the observed monthly cms readings; per-month cms is preserved so
 // real seasonality survives. We only ever predict the missing cms values.
@@ -608,6 +679,38 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
       }
     }
 
+    // 3-agri) Agriculture forward projection — geometric (compound) growth on
+    // the annual area planted, distributed across months by the Seasonal Mean
+    // Ratio (agri methodology §4–5):
+    //   A_t = A_0 × r^(t−base),   Monthly(t,m) = (A_t ÷ 12) × SMR_m.
+    // Rice's case (preserve the base-year monthly pattern, scale by r) is the
+    // SMR distribution with SMR learned from the data. Floored at 0 — planted
+    // area is never negative.
+    if (y > lastObs && category === "agriculture" && s.geoRate != null && obsNorm[lastObs] != null) {
+      const A0 = obsNorm[lastObs];                 // base-year annual area (last observed)
+      const At = Math.max(A0 * Math.pow(s.geoRate, y - lastObs), 0);
+      const val_mean = fromNorm(At, y);
+      if (val_mean != null) {
+        const row = {
+          year: y,
+          value_mean: Math.max(val_mean, 0),
+          value_lower90: Math.max(val_mean, 0) * 0.85,
+          value_upper90: Math.max(val_mean, 0) * 1.15,
+          monthly_mean: Math.max(val_mean, 0) / 12,
+          flag: "forecast",
+          population: popMode === "with" ? popLookup(popSeries, s.name, y) : null,
+          norm_mean: At
+        };
+        if (s.smr) {
+          const mv = {};
+          for (let m = 1; m <= 12; m++) mv[m] = Math.max((row.value_mean / 12) * s.smr[m - 1], 0);
+          row.monthly_vals = mv;
+        }
+        rows[y] = row;
+        continue;
+      }
+    }
+
     // 3) Projection — y > lastObs and we have a fitted trend.
     if (y > lastObs && trend) {
       const norm_mean = trend.intercept + trend.slope * y;
@@ -708,6 +811,25 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
     }
   }
 
+  // For agriculture: preserve the real per-month area on observed years; for
+  // any other estimated year that lacks explicit monthly values, distribute the
+  // annual figure across months with the Seasonal Mean Ratio so seasonality is
+  // consistent across observed, backcast and projected rows.
+  if (category === "agriculture" && s.smr) {
+    for (const y of Object.keys(rows).map(Number)) {
+      const r = rows[y];
+      if (r.monthly_vals) continue;                    // already set (projection)
+      const obs = s.annual[y];
+      if (obs && obs.monthly_vals && r.flag === "observed") {
+        r.monthly_vals = obs.monthly_vals;             // real observed months
+      } else if (r.value_mean != null) {
+        const mv = {};
+        for (let m = 1; m <= 12; m++) mv[m] = Math.max((r.value_mean / 12) * s.smr[m - 1], 0);
+        r.monthly_vals = mv;
+      }
+    }
+  }
+
   return {
     supported: true,
     name: s.name,
@@ -720,7 +842,9 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
     trend,
     seasonalShape: s.seasonalShape || null,
     baseMonthlyMedian: s.baseMonthlyMedian || null,
-    mk: s.mk || null
+    mk: s.mk || null,
+    smr: s.smr || null,
+    geoRate: s.geoRate != null ? s.geoRate : null
   };
 }
 
@@ -811,15 +935,23 @@ async function runPipeline() {
     mainSeries = extractSeries(mainRows);
   }
 
-  // River flow uses a cms annualiser and preserves a per-year seasonal shape.
+  // Per-category annualisers. River flow stays in cms with a seasonal shape;
+  // agriculture (area planted) keeps monthly values for the Seasonal Mean Ratio
+  // and fits a geometric growth rate for the area-planted projection.
+  const isAgri = STATE.category === "agriculture";
   for (const s of mainSeries) {
-    s.annual = isRiverFlow ? annualizeRiverFlow(s.records) : annualize(s.records);
+    s.annual = isRiverFlow ? annualizeRiverFlow(s.records)
+             : isAgri      ? annualizeAgri(s.records)
+             : annualize(s.records);
     if (isRiverFlow) {
       s.seasonalShape = computeSeasonalShape(s.annual);
       s.baseMonthlyMedian = computeMonthlyMedian(s.annual);
       const obsAnnual = Object.keys(s.annual).map(Number).sort((a, b) => a - b)
         .map(y => s.annual[y].annual).filter(v => v != null);
       s.mk = mannKendall(obsAnnual);
+    } else if (isAgri) {
+      s.smr = computeSMR(s.annual);
+      s.geoRate = geometricRate(s.annual);
     }
   }
 
@@ -934,7 +1066,16 @@ function interpretSeries(r, opts) {
     }
   }
   if (category === "agriculture") {
-    insights.push(`Agriculture mode prioritises continuity of prediction; flagged backcasts/forecasts are best-estimates rather than archival values.`);
+    insights.push(`Area planted (ha). Projection follows the agri methodology: a <strong>geometric (compound) growth model</strong> on the annual area — <code>A<sub>t</sub> = A<sub>2024</sub> × r<sup>(t−2024)</sup></code> — distributed across months by the <strong>Seasonal Mean Ratio</strong> (SMR, indices summing to 12), and floored at 0 (planted area is never negative).`);
+    if (r.geoRate != null && (timeframe === "projected" || timeframe === "both")) {
+      const pct = (r.geoRate - 1) * 100;
+      const clamped = r.geoRate <= GEO_RATE_MIN + 1e-9 || r.geoRate >= GEO_RATE_MAX - 1e-9;
+      insights.push(`Fitted growth rate r = <strong>${r.geoRate.toFixed(4)}</strong> (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%/yr, log-linear fit${clamped ? `, clamped to the ${GEO_RATE_MIN}–${GEO_RATE_MAX} plausible band` : ""}).`);
+    }
+    if (backcast.length > 0) {
+      insights.push(`Pre-record years (e.g. 2000–2009 vegetables) are backcast by OLS retropolation, floored at 0.`);
+    }
+    insights.push(`<em>Exact Bulacan reference values</em> additionally re-base each group to <code>provincial total × historical share</code> and reconcile across the six municipality groups — that requires uploading the provincial projection totals (use “Disaggregate from a parent-area total”).`);
   }
   if (category === "riverflow") {
     insights.push(`River flow stays in <strong>cms (m³/s)</strong>. Observed months pass through unchanged. Future years (beyond the last observed) are projected with the <strong>Climate Delta Scaling Method</strong> (PAGASA&nbsp;2018, Region&nbsp;III): each month's robust baseline <em>Q<sub>base</sub>(m)</em> — the median of observed cms for that calendar month — is shifted by the projected seasonal rainfall change δ(m), ramped linearly from the 2010 baseline (φ=0) to 2050 (φ=1), and floored at ${RIVER_MIN_FLOW}&nbsp;cms so flows are never negative. The band is the ±${(RIVER_ENVELOPE*100).toFixed(0)}% planning envelope recommended for high-variability gauges.`);
@@ -1015,6 +1156,8 @@ function explainResult(r) {
   }
   if (STATE.category === "riverflow" && (STATE.timeframe === "projected" || STATE.timeframe === "both")) {
     parts.push(`Projection: Climate Delta Scaling (PAGASA 2018, RCP4.5) on the observed monthly-median baseline; ±${(RIVER_ENVELOPE*100).toFixed(0)}% planning band; physical floor ${RIVER_MIN_FLOW} cms.`);
+  } else if (STATE.category === "agriculture" && r.geoRate != null && (STATE.timeframe === "projected" || STATE.timeframe === "both")) {
+    parts.push(`Projection: geometric growth (r = <strong>${r.geoRate.toFixed(4)}</strong>) on annual area × Seasonal Mean Ratio monthly distribution; floored at 0.`);
   } else if (r.trend && r.trend.n >= 2 && (STATE.timeframe === "projected" || STATE.timeframe === "both")) {
     parts.push(`Projection trend: slope = <strong>${fmt2(r.trend.slope)}</strong> per year, R² = ${r.trend.r2.toFixed(2)}, ` +
                `90% CI = ±${fmt2(1.645 * r.trend.seResid)} on the normalised scale.`);
@@ -1078,6 +1221,14 @@ function renderLocBlock(r) {
             v = row.monthly_mean;
             lo = row.value_lower90; hi = row.value_upper90;
           }
+        } else if (row.monthly_vals && row.monthly_vals[m] != null) {
+          // Agriculture: real observed monthly area, or the Seasonal-Mean-Ratio
+          // distribution of the annual figure (projected/backcast years).
+          v = row.monthly_vals[m];
+          lo = row.value_lower90 != null && row.value_mean
+            ? row.value_lower90 * (v / row.value_mean) : null;
+          hi = row.value_upper90 != null && row.value_mean
+            ? row.value_upper90 * (v / row.value_mean) : null;
         } else {
           v = row.monthly_mean;
           lo = row.value_lower90 != null ? row.value_lower90 / 12 : null;
@@ -1163,6 +1314,12 @@ function monthlyValueFor(r, row, monthIdx) {
     if (row.monthly_cms && row.monthly_cms[monthIdx] != null) return row.monthly_cms[monthIdx];
     if (r.seasonalShape) return row.value_mean * r.seasonalShape[monthIdx - 1];
     return row.value_mean;
+  }
+  if (STATE.category === "agriculture") {
+    // ha: real observed month, or the Seasonal-Mean-Ratio distribution.
+    if (row.monthly_vals && row.monthly_vals[monthIdx] != null) return row.monthly_vals[monthIdx];
+    if (r.smr) return (row.value_mean / 12) * r.smr[monthIdx - 1];
+    return row.value_mean / 12;
   }
   return row.value_mean / 12;
 }
@@ -1342,6 +1499,8 @@ function buildHtmlReport(results, originalFilename) {
     <p><strong>Reference mode:</strong> ${popMode}</p>
     <p><strong>Method:</strong> ${STATE.category === "riverflow"
       ? "Station-substitution (MOVE / Hirsch 1982) for gap-fill; forward projection by Climate Delta Scaling (PAGASA 2018 Region III RCP4.5) on the observed monthly-median baseline, ramped linearly 2010→2050, floored at " + RIVER_MIN_FLOW + " cms; ±" + (RIVER_ENVELOPE*100).toFixed(0) + "% planning band. Mann-Kendall reported per series."
+      : STATE.category === "agriculture"
+      ? "Station-substitution (MOVE / Hirsch 1982) for gap-fill; forward projection by geometric (compound) growth A_t = A_2024 · r^(t−2024), r from a log-linear fit clamped to " + GEO_RATE_MIN + "–" + GEO_RATE_MAX + ", distributed across months by the Seasonal Mean Ratio (sum 12); all values floored at 0. Pre-record years backcast by OLS retropolation."
       : "Station-substitution (MOVE / Hirsch 1982) using the longest observed series in the upload as the template; trend extrapolation via OLS for projection; per-tier empirically calibrated 90% intervals."}</p>
   `;
   for (const r of results) {

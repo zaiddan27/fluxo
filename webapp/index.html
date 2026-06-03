@@ -1383,7 +1383,7 @@
     <!-- Step 3 — Granularity -->
     <div class="step-panel" data-panel="3">
       <div class="step-q">Annual or monthly output?</div>
-      <div class="step-help">Choose the time resolution of your output table. Monthly output is derived from annual figures divided by 12 (the source data has no intra-year seasonality).</div>
+      <div class="step-help">Choose the time resolution of your output table. For river flow and agriculture, monthly output preserves real seasonality — observed months pass through, and estimated months follow the seasonal pattern (river: observed shape; agriculture: Seasonal Mean Ratio). For water demand with no monthly signal, monthly output is the annual figure ÷ 12.</div>
       <div class="opt-grid">
         <div class="opt" data-key="granularity" data-value="annual">
           <div class="opt-icon"><svg class="icon-svg"><use href="#i-calendar"/></svg></div>
@@ -1552,7 +1552,7 @@
       <div class="method-step"><span class="stepnum">4.1</span><strong>Trend fitting.</strong> The platform fits an ordinary-least-squares linear regression of value on year over the observed window. The slope captures the average annual change in demand or area.</div>
       <div class="method-step"><span class="stepnum">4.2</span><strong>Extrapolation.</strong> The fitted line is extended through year 2050: <code>L̂(y) = α + β·y</code>. For locations without an observable trend, the platform falls back to the last observed value held constant — and flags it as low confidence.</div>
       <div class="method-step"><span class="stepnum">4.3</span><strong>Interval calibration.</strong> The 90% prediction interval is derived from the residual standard error of the fit, widened by ±1.645·SE per the standard Gaussian quantile. This is the agronomically and hydrologically defensible default.</div>
-      <div class="method-step"><span class="stepnum">4.4</span><strong>Agriculture exception.</strong> When the category is <em>agriculture</em> and data is sparse, the platform prioritises continuity of prediction over strict accuracy — it will emit a flagged best-estimate rather than refuse, on the principle that planners benefit more from a transparent estimate than a blank.</div>
+      <div class="method-step"><span class="stepnum">4.4</span><strong>Agriculture — geometric growth + Seasonal Mean Ratio.</strong> For <em>area planted</em>, projection follows the agri methodology rather than a linear trend. The annual area grows geometrically from the last observed (2024) base, <code>A<sub>t</sub> = A<sub>2024</sub> × r<sup>(t−2024)</sup></code>, where <code>r</code> is the compound growth rate from a log-linear fit (clamped to a plausible 0.98–1.02 band, since a short, volatile group record cannot support an unbounded 25-year rate). The annual figure is spread across months by the <strong>Seasonal Mean Ratio</strong> — <code>Monthly(t,m) = (A<sub>t</sub>÷12) × SMR<sub>m</sub></code>, indices normalised to sum to 12 — and every value is floored at 0 (planted area is never negative). Pre-record years (e.g. 2000–2009 vegetables) are backcast by OLS retropolation, also floored at 0. <em>Note:</em> the published Bulacan figures further re-base each municipality group to <code>provincial total × historical share</code> and reconcile across the six groups; reproducing those exact values requires uploading the provincial projection totals via the parent-area disaggregation step (2.5).</div>
     </div>
   </details>
 
@@ -1595,6 +1595,9 @@
       <li>Hirsch, R.M., Slack, J.R., Smith, R.A. (1982). Techniques of trend analysis for monthly water quality data. <em>Water Resources Research</em> 18(1): 107–121. <span class="ref-note">— Mann-Kendall trend test.</span></li>
       <li>Hay, L.E., Wilby, R.L., Leavesley, G.H. (2000). A comparison of delta change and downscaled GCM scenarios for three mountainous basins. <em>JAWRA</em> 36(2): 387–397. <span class="ref-note">— Climate Delta / perturbation method.</span></li>
       <li>Sen, P.K. (1968). Estimates of the regression coefficient based on Kendall's tau. <em>JASA</em> 63(324): 1379–1389. <span class="ref-note">— Theil-Sen robust slope.</span></li>
+      <li>Makridakis, S., Wheelwright, S.C., Hyndman, R.J. (1998). <em>Forecasting: Methods and Applications</em>, 3rd ed. Wiley. <span class="ref-note">— Seasonal Mean Ratio decomposition.</span></li>
+      <li>Gujarati, D.N., Porter, D.C. (2009). <em>Basic Econometrics</em>, 5th ed. McGraw-Hill. <span class="ref-note">— log-linear geometric growth model.</span></li>
+      <li>Hyndman, R.J., Athanasopoulos, G. (2021). <em>Forecasting: Principles and Practice</em>, 3rd ed. OTexts. <span class="ref-note">— OLS retropolation / backcasting.</span></li>
       <li>Philippine Statistics Authority (PSA). Census of Population and Housing, 1990–2020. Manila.</li>
       <li>Philippine Institute for Development Studies (1999). Determination of Basic Household Water Requirements. Discussion Paper 99-02.</li>
       <li>Asian Development Bank (2013). <em>Philippines: Water Supply and Sanitation Sector Assessment</em>.</li>
