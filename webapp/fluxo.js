@@ -60,6 +60,64 @@ const TIERS = {
   backcast_low:  { q05:  0.15, q95: 2.15 }
 };
 
+// River-flow projection uses the Climate Delta Scaling Method (PAGASA 2018,
+// Region III / Central Luzon), exactly as documented for the Angat/Sta-Maria
+// Bulacan projections:  Q(y,m) = max{ Q_base(m) × [1 + δ(m)·φ(y)] , floor }.
+// δ(m) is the fractional rainfall (≈ streamflow) change projected for 2050 vs
+// the 2010 baseline, by season and emission scenario:
+//   DJF = months 12,1,2 · MAM = 3,4,5 · JJA = 6,7,8 · SON = 9,10,11.
+const CLIMATE_SEASON = { 12:"DJF",1:"DJF",2:"DJF", 3:"MAM",4:"MAM",5:"MAM",
+                         6:"JJA",7:"JJA",8:"JJA", 9:"SON",10:"SON",11:"SON" };
+const CLIMATE_DELTAS = {
+  BASE: { DJF:-0.08, MAM:-0.05, JJA:0.05, SON:0.04 },  // RCP4.5 — most likely
+  HIGH: { DJF:-0.15, MAM:-0.12, JJA:0.10, SON:0.08 },  // RCP8.5 — upper bound
+  LOW:  { DJF:-0.03, MAM:-0.02, JJA:0.02, SON:0.01 }   // RCP2.6 — lower bound
+};
+const CLIMATE_BASELINE_YEAR = 2010;   // φ = 0 here (IPCC reference)
+const CLIMATE_TARGET_YEAR   = 2050;   // φ = 1 here (full delta applied)
+const RIVER_MIN_FLOW        = 0.001;  // physical floor (cms) — never reached in practice
+// Planning envelope around a single projected value (doc §8.2: CV>60% ⇒ ±40%).
+const RIVER_ENVELOPE        = 0.40;
+
+function climateDelta(scenario, month) {
+  return CLIMATE_DELTAS[scenario][CLIMATE_SEASON[month]];
+}
+function climatePhi(year) {
+  const f = (year - CLIMATE_BASELINE_YEAR) / (CLIMATE_TARGET_YEAR - CLIMATE_BASELINE_YEAR);
+  return Math.min(1, Math.max(0, f));
+}
+
+// Q_base(m): the climatological baseline — median (robust to skew/outliers per
+// WMO 2017) of the observed monthly cms for each calendar month across all years.
+function computeMonthlyMedian(annualBy) {
+  const byMonth = Array.from({ length: 12 }, () => []);
+  for (const y of Object.keys(annualBy)) {
+    const row = annualBy[+y];
+    if (!row || !row.monthly_cms) continue;
+    for (let m = 1; m <= 12; m++) {
+      if (row.monthly_cms[m] != null) byMonth[m - 1].push(row.monthly_cms[m]);
+    }
+  }
+  return byMonth.map(arr => (arr.length ? median(arr) : null));
+}
+
+// Mann-Kendall trend test (Hirsch-Slack-Smith 1982) on annual values — the
+// doc's decision point. Returned for reporting; the projection itself uses the
+// climate-delta method regardless (extrapolating an insignificant noise slope,
+// or an unbounded significant one, is what produced negative flows before).
+function mannKendall(values) {
+  const n = values.length;
+  if (n < 4) return null;
+  let S = 0;
+  for (let i = 0; i < n - 1; i++)
+    for (let j = i + 1; j < n; j++) S += Math.sign(values[j] - values[i]);
+  const varS = (n * (n - 1) * (2 * n + 5)) / 18;
+  let Z = 0;
+  if (S > 0) Z = (S - 1) / Math.sqrt(varS);
+  else if (S < 0) Z = (S + 1) / Math.sqrt(varS);
+  return { S, Z, significant: Math.abs(Z) > 1.96 };
+}
+
 //=========================================================================
 // SMALL UTILITIES
 //=========================================================================
@@ -516,6 +574,40 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
       }
     }
 
+    // 3-river) River flow forward projection — Climate Delta Scaling (PAGASA
+    // 2018). Holds the observed monthly-median seasonal pattern and shifts it by
+    // the projected seasonal rainfall change, ramped linearly 2010→2050. This is
+    // the documented Bulacan river method; it is non-negative by construction
+    // (physical floor) and replaces the unbounded OLS slope that drove flows
+    // negative. The HIGH/LOW RCP scenarios set the planning band.
+    if (y > lastObs && category === "riverflow" && s.baseMonthlyMedian) {
+      const phi = climatePhi(y);
+      const mcms = {};
+      let sum = 0, cnt = 0;
+      for (let m = 1; m <= 12; m++) {
+        const qb = s.baseMonthlyMedian[m - 1];
+        if (qb == null) continue;
+        mcms[m] = Math.max(qb * (1 + climateDelta("BASE", m) * phi), RIVER_MIN_FLOW);
+        sum += mcms[m];
+        cnt++;
+      }
+      if (cnt > 0) {
+        const val_mean = sum / cnt;
+        rows[y] = {
+          year: y,
+          value_mean: val_mean,
+          value_lower90: val_mean * (1 - RIVER_ENVELOPE),
+          value_upper90: val_mean * (1 + RIVER_ENVELOPE),
+          monthly_mean: val_mean / 12,
+          monthly_cms: mcms,
+          flag: "forecast",
+          population: null,
+          norm_mean: val_mean
+        };
+        continue;
+      }
+    }
+
     // 3) Projection — y > lastObs and we have a fitted trend.
     if (y > lastObs && trend) {
       const norm_mean = trend.intercept + trend.slope * y;
@@ -626,7 +718,9 @@ function processSeries(s, template, templateAnnual, popSeries, opts) {
     tier,
     template: template ? template.name : null,
     trend,
-    seasonalShape: s.seasonalShape || null
+    seasonalShape: s.seasonalShape || null,
+    baseMonthlyMedian: s.baseMonthlyMedian || null,
+    mk: s.mk || null
   };
 }
 
@@ -720,7 +814,13 @@ async function runPipeline() {
   // River flow uses a cms annualiser and preserves a per-year seasonal shape.
   for (const s of mainSeries) {
     s.annual = isRiverFlow ? annualizeRiverFlow(s.records) : annualize(s.records);
-    if (isRiverFlow) s.seasonalShape = computeSeasonalShape(s.annual);
+    if (isRiverFlow) {
+      s.seasonalShape = computeSeasonalShape(s.annual);
+      s.baseMonthlyMedian = computeMonthlyMedian(s.annual);
+      const obsAnnual = Object.keys(s.annual).map(Number).sort((a, b) => a - b)
+        .map(y => s.annual[y].annual).filter(v => v != null);
+      s.mk = mannKendall(obsAnnual);
+    }
   }
 
   // Parse optional population file — water only (LPCD normalisation).
@@ -818,7 +918,7 @@ function interpretSeries(r, opts) {
     insights.push(`Projection to <strong>${lastFc}</strong>: ` +
                   `<strong>${fmtU(v)}</strong> ${unit} (90% CI: ${fmtU(lo)}–${fmtU(hi)}).`);
 
-    if (r.trend && r.trend.slope != null && lastObsV != null && lastObsV > 0) {
+    if (category !== "riverflow" && r.trend && r.trend.slope != null && lastObsV != null && lastObsV > 0) {
       const pctChange = ((v - lastObsV) / lastObsV) * 100;
       const direction = pctChange >= 0 ? "growth" : "decline";
       insights.push(`Implied <strong>${direction}</strong> of <strong>${Math.abs(pctChange).toFixed(1)}%</strong> ` +
@@ -837,7 +937,14 @@ function interpretSeries(r, opts) {
     insights.push(`Agriculture mode prioritises continuity of prediction; flagged backcasts/forecasts are best-estimates rather than archival values.`);
   }
   if (category === "riverflow") {
-    insights.push(`River flow stays in <strong>cms (m³/s)</strong> — only the missing discharge values are predicted. The per-year level is the mean of the observed monthly cms; missing months and fully missing years are reconstructed as <em>year-mean × month multiplier</em>, where the multiplier is the average seasonal shape (mean&nbsp;1) of the observed data. Observed months pass through unchanged.`);
+    insights.push(`River flow stays in <strong>cms (m³/s)</strong>. Observed months pass through unchanged. Future years (beyond the last observed) are projected with the <strong>Climate Delta Scaling Method</strong> (PAGASA&nbsp;2018, Region&nbsp;III): each month's robust baseline <em>Q<sub>base</sub>(m)</em> — the median of observed cms for that calendar month — is shifted by the projected seasonal rainfall change δ(m), ramped linearly from the 2010 baseline (φ=0) to 2050 (φ=1), and floored at ${RIVER_MIN_FLOW}&nbsp;cms so flows are never negative. The band is the ±${(RIVER_ENVELOPE*100).toFixed(0)}% planning envelope recommended for high-variability gauges.`);
+    if (r.mk) {
+      const dir = r.mk.S < 0 ? "declining" : r.mk.S > 0 ? "rising" : "flat";
+      insights.push(`Mann-Kendall trend test on the observed annual means: Z = <strong>${r.mk.Z.toFixed(2)}</strong> (${dir} direction, ${r.mk.significant ? "<strong>significant</strong>" : "not significant"} at the 5% level). ` +
+                    (r.mk.significant
+                      ? `A data-derived decay could be justified; the climate-delta projection is used here as the non-negative, climate-grounded default.`
+                      : `Per the methodology, an OLS/CAGR extrapolation of this insignificant noise slope would be invalid — the climate-delta method is the correct choice.`));
+    }
     if (r.seasonalShape) {
       const peakIdx = r.seasonalShape.indexOf(Math.max(...r.seasonalShape));
       const dryIdx  = r.seasonalShape.indexOf(Math.min(...r.seasonalShape));
@@ -906,7 +1013,9 @@ function explainResult(r) {
                `from <strong>${r.overlap}</strong> overlap year${r.overlap === 1 ? "" : "s"} ` +
                `(CV = ${(r.cv * 100).toFixed(1)}%). Tier: ${flagLabel(r.tier)}.`);
   }
-  if (r.trend && r.trend.n >= 2 && (STATE.timeframe === "projected" || STATE.timeframe === "both")) {
+  if (STATE.category === "riverflow" && (STATE.timeframe === "projected" || STATE.timeframe === "both")) {
+    parts.push(`Projection: Climate Delta Scaling (PAGASA 2018, RCP4.5) on the observed monthly-median baseline; ±${(RIVER_ENVELOPE*100).toFixed(0)}% planning band; physical floor ${RIVER_MIN_FLOW} cms.`);
+  } else if (r.trend && r.trend.n >= 2 && (STATE.timeframe === "projected" || STATE.timeframe === "both")) {
     parts.push(`Projection trend: slope = <strong>${fmt2(r.trend.slope)}</strong> per year, R² = ${r.trend.r2.toFixed(2)}, ` +
                `90% CI = ±${fmt2(1.645 * r.trend.seResid)} on the normalised scale.`);
   }
@@ -1231,7 +1340,9 @@ function buildHtmlReport(results, originalFilename) {
     <p><strong>Timeframe:</strong> ${timeframe}</p>
     <p><strong>Granularity:</strong> ${granularity}</p>
     <p><strong>Reference mode:</strong> ${popMode}</p>
-    <p><strong>Method:</strong> Station-substitution (MOVE / Hirsch 1982) using the longest observed series in the upload as the template; trend extrapolation via OLS for projection; per-tier empirically calibrated 90% intervals.</p>
+    <p><strong>Method:</strong> ${STATE.category === "riverflow"
+      ? "Station-substitution (MOVE / Hirsch 1982) for gap-fill; forward projection by Climate Delta Scaling (PAGASA 2018 Region III RCP4.5) on the observed monthly-median baseline, ramped linearly 2010→2050, floored at " + RIVER_MIN_FLOW + " cms; ±" + (RIVER_ENVELOPE*100).toFixed(0) + "% planning band. Mann-Kendall reported per series."
+      : "Station-substitution (MOVE / Hirsch 1982) using the longest observed series in the upload as the template; trend extrapolation via OLS for projection; per-tier empirically calibrated 90% intervals."}</p>
   `;
   for (const r of results) {
     if (!r.supported) {
@@ -1340,7 +1451,7 @@ function applyStep4Copy() {
     $("#popYesTitle").textContent = "Apply a reference multiplier (rare)";
     $("#popYesDesc").textContent = "Reserved for catchment-area scaling. Upload a matching reference file in the next step.";
     $("#popNoTitle").textContent = "Process directly (recommended)";
-    $("#popNoDesc").textContent = "Predict missing cms directly. Real monthly seasonality preserved on observed months.";
+    $("#popNoDesc").textContent = "Gap-fill missing cms and project to 2050 via Climate Delta Scaling (PAGASA 2018). Observed months preserved.";
   } else {
     $("#popQuestion").textContent = "Do you have reference population data?";
     $("#popHelp").innerHTML = `If population data is available, the platform will compute litres-per-capita-per-day (LPCD) and use it to
@@ -1369,7 +1480,9 @@ function applyStep5Copy() {
     helpBits.push("Discharge stays in cms (m³/s); only missing months and years are predicted.");
   }
   if (STATE.timeframe === "projected" || STATE.timeframe === "both") {
-    helpBits.push("Output horizon will extend to 2050 using fitted trend extrapolation.");
+    helpBits.push(STATE.category === "riverflow"
+      ? "Output horizon extends to 2050 via Climate Delta Scaling (PAGASA 2018 RCP4.5)."
+      : "Output horizon will extend to 2050 using fitted trend extrapolation.");
   }
   if (STATE.category === "water" && STATE.popMode === "with") {
     helpBits.push("Upload the matching population/reference file in the second slot.");
