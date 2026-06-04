@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Fluxo · CCCEM-CLSU — Philippine Water &amp; Crop Gap-Filling and Projection Platform</title>
-<meta name="description" content="A nationwide Philippine platform for gap-filling and projecting urban water demand and agricultural crop planted/harvested data — by the College of Climate Change and Environmental Management, Central Luzon State University." />
+<title>Fluxo · CCCEM-CLSU — Philippine Urban Water &amp; River Flow Gap-Filling and Projection Platform</title>
+<meta name="description" content="A nationwide Philippine platform for gap-filling and projecting urban water demand and river flow (streamflow) — by the College of Climate Change and Environmental Management, Central Luzon State University." />
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -1211,7 +1211,7 @@
   <div class="hero-grid">
     <div class="hero-text glass">
       <span class="hero-eyebrow"><span class="dot"></span> CCCEM · Climate &amp; Environmental Intelligence</span>
-      <h1>A nationwide platform for <span class="accent">Philippine water demand</span> and <span class="accent">crop area</span> intelligence.</h1>
+      <h1>A nationwide platform for <span class="accent">Philippine urban water</span> and <span class="accent">river flow</span> intelligence.</h1>
       <p class="hero-lede">
         Fluxo is a scientific gap-filling and projection environment built by the
         College of Climate Change and Environmental Management at Central Luzon State University.
@@ -1258,9 +1258,9 @@
         </svg>
       </div>
       <div class="floater f2">
-        <div class="ftitle">Crop planted</div>
-        <div class="fval">2.41M <span style="font-size: .8rem; font-weight: 400; color: var(--ink-muted);">ha</span></div>
-        <div class="fsub">Projected 2030</div>
+        <div class="ftitle">River flow</div>
+        <div class="fval">5.18 <span style="font-size: .8rem; font-weight: 400; color: var(--ink-muted);">cms</span></div>
+        <div class="fsub">Projected 2050 · Climate Delta</div>
       </div>
       <div class="floater f3">
         <div class="ftitle">Confidence</div>
@@ -1284,12 +1284,12 @@
     <div class="glass mission-card">
       <div class="icon"><svg class="icon-svg"><use href="#i-history"/></svg></div>
       <h3>Reconstruct the past</h3>
-      <p>Fill missing pre-observation years using station-substitution (Hirsch 1982) and the longest available template series in your dataset.</p>
+      <p>Fill missing years from the data itself — geometric (CAGR) interpolation for urban water, and station-substitution (Hirsch 1982) for river gauges.</p>
     </div>
     <div class="glass mission-card">
       <div class="icon"><svg class="icon-svg"><use href="#i-trending-up"/></svg></div>
       <h3>Project the future</h3>
-      <p>Extend any record to 2050 using fitted trend models with empirically calibrated 90% prediction intervals.</p>
+      <p>Extend any record to 2050 — a data-selected growth model for urban water, and Climate Delta Scaling (PAGASA 2018) for river flow. Every value stays non-negative.</p>
     </div>
     <div class="glass mission-card">
       <div class="icon"><svg class="icon-svg"><use href="#i-shield-check"/></svg></div>
@@ -1309,7 +1309,7 @@
   <div class="section-eyebrow">Analysis Workflow</div>
   <h2 class="section-title">A guided, step-by-step pathway.</h2>
   <p class="section-lede">
-    Move through five short questions. Every choice you make shapes the computation, the visualization,
+    Move through four short questions. Every choice you make shapes the computation, the visualization,
     and the interpretation of your results — so you stay in control of the scientific process.
   </p>
 
@@ -1318,8 +1318,7 @@
       <div class="step active" data-step="1"><div class="bubble">1</div><div class="lbl">Category</div></div>
       <div class="step"        data-step="2"><div class="bubble">2</div><div class="lbl">Timeframe</div></div>
       <div class="step"        data-step="3"><div class="bubble">3</div><div class="lbl">Granularity</div></div>
-      <div class="step"        data-step="4"><div class="bubble">4</div><div class="lbl">Reference Data</div></div>
-      <div class="step"        data-step="5"><div class="bubble">5</div><div class="lbl">Upload &amp; Run</div></div>
+      <div class="step"        data-step="4"><div class="bubble">4</div><div class="lbl">Upload &amp; Run</div></div>
     </div>
 
     <!-- Step 1 — Category -->
@@ -1327,20 +1326,15 @@
       <div class="step-q">What category of data would you like to analyze?</div>
       <div class="step-help">Choose the domain of your dataset. This determines the variable, units, and interpretation logic the platform will apply.</div>
       <div class="opt-grid">
-        <div class="opt" data-key="category" data-value="agriculture">
-          <div class="opt-icon"><svg class="icon-svg"><use href="#i-sprout"/></svg></div>
-          <div class="opt-title">Agricultural Crop Planted / Harvested</div>
-          <div class="opt-desc">Hectares planted or harvested per location. Prediction emphasis when data is sparse.</div>
-        </div>
         <div class="opt" data-key="category" data-value="water">
           <div class="opt-icon"><svg class="icon-svg"><use href="#i-droplet"/></svg></div>
           <div class="opt-title">Urban Water Use</div>
-          <div class="opt-desc">Water demand in cubic metres (m³) per water district or LGU.</div>
+          <div class="opt-desc">Water extraction in cubic metres (m³) per station or LGU. Gaps filled and demand projected to 2050 per-station, per-semester (CAGR + data-selected model).</div>
         </div>
         <div class="opt" data-key="category" data-value="riverflow">
           <div class="opt-icon"><svg class="icon-svg"><use href="#i-waves"/></svg></div>
           <div class="opt-title">River Flow / Streamflow</div>
-          <div class="opt-desc">Discharge in cms (m³/s) per gauging station. Observed months preserved; gaps filled and future flow projected to 2050 via Climate Delta Scaling (PAGASA 2018).</div>
+          <div class="opt-desc">Discharge in cms (m³/s) per gauging station. Only the missing flow rate is predicted — observed months preserved; future flow projected to 2050 via Climate Delta Scaling (PAGASA 2018).</div>
         </div>
       </div>
       <div class="step-nav">
@@ -1383,7 +1377,7 @@
     <!-- Step 3 — Granularity -->
     <div class="step-panel" data-panel="3">
       <div class="step-q">Annual or monthly output?</div>
-      <div class="step-help">Choose the time resolution of your output table. For river flow and agriculture, monthly output preserves real seasonality — observed months pass through, and estimated months follow the seasonal pattern (river: observed shape; agriculture: Seasonal Mean Ratio). For water demand with no monthly signal, monthly output is the annual figure ÷ 12.</div>
+      <div class="step-help">Choose the time resolution of your output table. <strong>River flow</strong> monthly output preserves real seasonality — observed months pass through, and projected months follow the climate-delta seasonal pattern. <strong>Urban water</strong> monthly output is the semester value (S1 = Jan–Jun, S2 = Jul–Dec) broadcast to its six months, mirroring the source-data convention.</div>
       <div class="opt-grid">
         <div class="opt" data-key="granularity" data-value="annual">
           <div class="opt-icon"><svg class="icon-svg"><use href="#i-calendar"/></svg></div>
@@ -1404,36 +1398,8 @@
       </div>
     </div>
 
-    <!-- Step 4 — Reference / Population -->
+    <!-- Step 4 — Upload -->
     <div class="step-panel" data-panel="4">
-      <div class="step-q" id="popQuestion">Do you have reference population data?</div>
-      <div class="step-help" id="popHelp">
-        If population data is available, the platform will compute litres-per-capita-per-day (LPCD) and use it to
-        backcast or project demand more accurately. If not, the platform will work directly with the demand values.
-        Either way, <strong>no external population data is used</strong> — only what you upload.
-      </div>
-      <div class="opt-grid">
-        <div class="opt" data-key="popMode" data-value="with">
-          <div class="opt-icon"><svg class="icon-svg"><use href="#i-sliders"/></svg></div>
-          <div class="opt-title" id="popYesTitle">Yes — I will upload population data</div>
-          <div class="opt-desc" id="popYesDesc">Per-capita normalization. A second upload slot will appear in the next step.</div>
-        </div>
-        <div class="opt" data-key="popMode" data-value="without">
-          <div class="opt-icon"><svg class="icon-svg"><use href="#i-file-text"/></svg></div>
-          <div class="opt-title" id="popNoTitle">No — work directly with the values</div>
-          <div class="opt-desc" id="popNoDesc">Direct station-substitution and trend extrapolation, no per-capita step.</div>
-        </div>
-      </div>
-      <div class="step-nav">
-        <button class="btn btn-ghost" data-action="back">← Back</button>
-        <div class="right">
-          <button class="btn btn-primary" data-action="next" disabled>Continue →</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Step 5 — Upload -->
-    <div class="step-panel" data-panel="5">
       <div class="step-q">Upload your dataset</div>
       <div class="step-help" id="uploadHelp">
         Provide a wide-format CSV/XLSX (Year, Month, Loc1, Loc2, …). Empty cells are treated as missing values.
@@ -1444,31 +1410,10 @@
         <label class="dropzone" id="dropzoneMain">
           <input type="file" id="fileMain" accept=".csv,.xlsx,.xls" />
           <div class="ico"><svg class="icon-svg"><use href="#i-upload"/></svg></div>
-          <p class="primary" id="mainLabel">Demand / Crop dataset</p>
+          <p class="primary" id="mainLabel">Dataset</p>
           <p class="secondary">Click to choose or drag-and-drop · CSV, XLSX, XLS · ≤ 10 MB</p>
           <div id="mainPill"></div>
         </label>
-
-        <label class="dropzone hidden" id="dropzonePop">
-          <input type="file" id="filePop" accept=".csv,.xlsx,.xls" />
-          <div class="ico"><svg class="icon-svg"><use href="#i-paperclip"/></svg></div>
-          <p class="primary" id="popLabel">Population / Reference dataset</p>
-          <p class="secondary" id="popSecondary">Same wide format · matching Year/Month/Location columns</p>
-          <div id="popPill"></div>
-        </label>
-      </div>
-
-      <!-- Agriculture disaggregation only: parent-area denominator -->
-      <div id="parentTotalWrap" class="hidden" style="margin-top: 16px;">
-        <label for="parentTotalHa" class="primary" style="display:block; font-weight:600; margin-bottom:6px;">
-          Parent (province / region) total land area — hectares
-        </label>
-        <input type="number" id="parentTotalHa" min="0" step="any" inputmode="decimal"
-               placeholder="e.g. 278369"
-               style="width:100%; max-width:320px; padding:10px 12px; border-radius:10px; border:1px solid var(--line, #cdddd2); font-size:0.95rem;" />
-        <p class="secondary" style="margin-top:6px;">
-          The denominator for every land-area share. Leave blank to use the sum of the areas in your land-area table.
-        </p>
       </div>
 
       <div id="runZone" style="margin-top: 22px;">
@@ -1518,60 +1463,47 @@
   <details class="method" open>
     <summary>1 · Data input and validation</summary>
     <div class="mbody">
-      <div class="method-step"><span class="stepnum">1.1</span><strong>Wide-format intake.</strong> The platform accepts CSV/XLSX files with one column per location and rows indexed by (Year, Month). The first column header may begin with a leading semicolon (<code>;Year</code>) — a convention used by upstream extraction tools — and is recognised transparently.</div>
+      <div class="method-step"><span class="stepnum">1.1</span><strong>Wide-format intake.</strong> The platform accepts CSV/XLSX files with one column per station/location and rows indexed by (Year, Month). The first column header may begin with a leading semicolon (<code>;Year</code>) — a convention used by upstream extraction tools — and is recognised transparently.</div>
       <div class="method-step"><span class="stepnum">1.2</span><strong>Header detection.</strong> The parser scans the first ten rows for a header containing the word <em>Year</em>. Any preceding rows (units, blank, semicolon-prefixed) are skipped.</div>
-      <div class="method-step"><span class="stepnum">1.3</span><strong>Validation.</strong> Each Year cell must be a four-digit number between 1900 and 2100. Empty value cells are treated as missing (not zero). Population-mode uploads must contain matching location columns.</div>
+      <div class="method-step"><span class="stepnum">1.3</span><strong>Validation.</strong> Each Year cell must be a four-digit number between 1900 and 2100. Empty value cells are treated as missing (not zero) — so the model fits only on genuinely observed years.</div>
     </div>
   </details>
 
   <details class="method">
-    <summary>2 · Preprocessing and annualisation</summary>
+    <summary>2 · Urban water — per-station, per-semester gap-fill &amp; projection</summary>
     <div class="mbody">
-      <div class="method-step"><span class="stepnum">2.1</span><strong>De-staircase.</strong> The raw Philippine water and crop datasets often broadcast a single annual figure across 12 months. The platform collapses each 12-row block back to one annual value by taking the mean of available monthly entries.</div>
-      <div class="method-step"><span class="stepnum">2.2</span><strong>Annual reconstruction.</strong> <code>annual = monthly_mean × 12</code>. Missing months are excluded from the mean rather than treated as zeros.</div>
-      <div class="method-step"><span class="stepnum">2.3</span><strong>Per-capita normalisation (optional).</strong> If population data is supplied, <code>LPCD = annual × 1000 ÷ (population × 365)</code> — litres per capita per day. Otherwise the platform proceeds directly on annual values.</div>
-      <div class="method-step"><span class="stepnum">2.4</span><strong>River flow — gap-fill + Climate Delta projection.</strong> When the category is <em>River Flow</em>, values stay in cms (m³/s) and observed months pass through unchanged. <em>Within the observed record</em>, missing months are reconstructed as <code>cms(y,m) = year_mean(y) × seasonal_multiplier(m)</code>, the observed average seasonal shape (mean&nbsp;1). <em>Beyond the last observed year</em>, flow is projected with the <strong>Climate Delta Scaling Method</strong> (PAGASA&nbsp;2018, Region&nbsp;III), the documented Bulacan river method: <code>Q(y,m) = max{ Q_base(m) × [1 + δ(m)·φ(y)] , 0.001 }</code>, where <code>Q_base(m)</code> is the median observed cms for that month, <code>δ(m)</code> is the RCP4.5 seasonal rainfall change (DJF&nbsp;−8%, MAM&nbsp;−5%, JJA&nbsp;+5%, SON&nbsp;+4% by 2050), and <code>φ(y) = (y−2010)/40</code> ramps the signal linearly to 2050. A 0.001&nbsp;cms physical floor guarantees flows are never negative. A Mann-Kendall trend test is reported per series; the ±40% planning envelope sets the band.</div>
-      <div class="method-step"><span class="stepnum">2.5</span><strong>Land-area disaggregation (agriculture).</strong> When only a <em>parent-area total</em> is available (a province or region), the platform splits it into per-location estimates in proportion to land area: <code>share = area_ha ÷ parent_total_ha</code>, then <code>value = parent_total × share</code>. The parent total (denominator) is entered explicitly — e.g. Bulacan's certified 278,369 ha — or defaults to the sum of the supplied areas. This is the standard proxy used when only province-level crop statistics exist (the same land-area basis the DBM uses for IRA allocation), and it generalises to any Philippine city, municipality, province, or region. The disaggregated series then flow through the same gap-filling and projection steps below.</div>
+      <div class="method-step"><span class="stepnum">2.1</span><strong>Semester separation.</strong> Each station is modelled independently for two semesters — <strong>S1</strong> (Jan–Jun, dry) and <strong>S2</strong> (Jul–Dec, wet) — preserving the dry/wet asymmetry of Philippine municipal water demand. After computation, each semester value is broadcast back to its six months, mirroring the source-data convention. There is <em>no</em> population / per-capita step — the method is fully data-driven.</div>
+      <div class="method-step"><span class="stepnum">2.2</span><strong>Historical gap-fill (CAGR).</strong> Water demand is the product of population and per-capita use, so it grows multiplicatively. Missing years are filled geometrically: leading gaps are <em>back-cast</em> from the global compound rate <code>r = (V<sub>last</sub>/V<sub>first</sub>)<sup>1/n</sup> − 1</code>; interior gaps use a local CAGR between the two bracketing observations (linear fallback if either is ≤ 0). A physical floor of <code>max(1, 5% × V<sub>first</sub>)</code> prevents near-zero back-casts (Billings &amp; Jones 2008; AWWA M50).</div>
+      <div class="method-step"><span class="stepnum">2.3</span><strong>Projection model selection (2025–2050).</strong> The model is chosen per semester from the data structure: <strong>Quadratic OLS</strong> when recent second differences are near-constant (constant acceleration ⇒ exactly quadratic — projected by cumulating the increment <code>ΔV(t) = α + β·(t−t₀)</code> from the last observed value); <strong>CAGR-exact</strong> for a near-perfect geometric series; <strong>Log-linear OLS</strong> only for a strong, clearly-better exponential fit (R² ≥ 0.90); otherwise <strong>Linear OLS</strong>, the minimum-variance default that avoids over-projecting noisy records. Geometric growth is capped at 15%/yr and every value is floored at 0.</div>
+      <div class="method-step"><span class="stepnum">2.4</span><strong>Output.</strong> Annual = S1 + S2 (semi-annual total); monthly output repeats each semester's value across its six months, rounded to whole m³.</div>
     </div>
   </details>
 
   <details class="method">
-    <summary>3 · Gap-filling (current data, 2000–2024)</summary>
+    <summary>3 · River flow — rate-only gap-fill &amp; Climate Delta projection</summary>
     <div class="mbody">
-      <div class="method-step"><span class="stepnum">3.1</span><strong>Template selection.</strong> The platform identifies the <em>template series</em> — the location with the longest, most complete observed record — and uses it as the historical anchor.</div>
-      <div class="method-step"><span class="stepnum">3.2</span><strong>Overlap analysis.</strong> For each target location <em>L</em>, the platform finds years where both <em>L</em> and the template <em>T</em> are observed, and computes the ratio <code>R(y) = L(y) ÷ T(y)</code>.</div>
-      <div class="method-step"><span class="stepnum">3.3</span><strong>Median ratio.</strong> The median of those ratios, <code>R̂</code>, characterises the relationship between <em>L</em> and <em>T</em>. The coefficient of variation (CV) of <em>R</em> measures how stable that relationship is.</div>
-      <div class="method-step"><span class="stepnum">3.4</span><strong>Backcast.</strong> For each missing pre-observation year <em>y</em>: <code>L̂(y) = R̂ × T(y)</code>. This is the station-substitution (MOVE) method of Hirsch (1982), the standard hydrological approach when one long-record series and several short-record series coexist.</div>
-      <div class="method-step"><span class="stepnum">3.5</span><strong>Confidence tier.</strong> Each backcast is tagged <em>high</em> / <em>mid</em> / <em>low</em> confidence based on overlap count and CV(<em>R</em>). High requires ≥ 5 overlap years and CV ≤ 20%; mid requires ≥ 3 and CV ≤ 35%; otherwise low.</div>
+      <div class="method-step"><span class="stepnum">3.1</span><strong>Rate only.</strong> River discharge stays in <strong>cms (m³/s)</strong> throughout — no conversion to volumes, no monthly totals. The platform predicts only the <em>missing flow rate</em>; observed months pass through unchanged.</div>
+      <div class="method-step"><span class="stepnum">3.2</span><strong>Within-record gaps.</strong> A missing month is reconstructed as <code>cms(y,m) = year_mean(y) × seasonal_multiplier(m)</code>, the observed average seasonal shape (mean&nbsp;1). A fully-missing interior year is linearly interpolated between bracketing years; pre-record years, when several gauges are uploaded together, back-cast from the longest gauge (station-substitution / MOVE, Hirsch 1982).</div>
+      <div class="method-step"><span class="stepnum">3.3</span><strong>Forward projection — Climate Delta Scaling.</strong> Beyond the last observed year, flow follows the documented Bulacan method (PAGASA&nbsp;2018, Region&nbsp;III): <code>Q(y,m) = max{ Q<sub>base</sub>(m) × [1 + δ(m)·φ(y)] , 0.001 }</code>, where <code>Q<sub>base</sub>(m)</code> is the median observed cms for that calendar month, <code>δ(m)</code> is the RCP4.5 seasonal rainfall change (DJF&nbsp;−8%, MAM&nbsp;−5%, JJA&nbsp;+5%, SON&nbsp;+4% by 2050), and <code>φ(y) = (y−2010)/40</code> ramps the signal linearly to 2050. The 0.001&nbsp;cms physical floor guarantees flows are never negative.</div>
+      <div class="method-step"><span class="stepnum">3.4</span><strong>Trend reporting.</strong> A Mann-Kendall test (Hirsch-Slack-Smith 1982) is reported per gauge; per the methodology, an insignificant noise slope must <em>not</em> be extrapolated — the climate-grounded delta method is the defensible choice. A ±40% planning envelope sets the band for high-variability gauges.</div>
     </div>
   </details>
 
   <details class="method">
-    <summary>4 · Projection (projected data, 2025–2050)</summary>
+    <summary>4 · Validation and interpretation</summary>
     <div class="mbody">
-      <div class="method-step"><span class="stepnum">4.1</span><strong>Trend fitting.</strong> The platform fits an ordinary-least-squares linear regression of value on year over the observed window. The slope captures the average annual change in demand or area.</div>
-      <div class="method-step"><span class="stepnum">4.2</span><strong>Extrapolation.</strong> The fitted line is extended through year 2050: <code>L̂(y) = α + β·y</code>. For locations without an observable trend, the platform falls back to the last observed value held constant — and flags it as low confidence.</div>
-      <div class="method-step"><span class="stepnum">4.3</span><strong>Interval calibration.</strong> The 90% prediction interval is derived from the residual standard error of the fit, widened by ±1.645·SE per the standard Gaussian quantile. This is the agronomically and hydrologically defensible default.</div>
-      <div class="method-step"><span class="stepnum">4.4</span><strong>Agriculture — geometric growth + Seasonal Mean Ratio.</strong> For <em>area planted</em>, projection follows the agri methodology rather than a linear trend. The annual area grows geometrically from the last observed (2024) base, <code>A<sub>t</sub> = A<sub>2024</sub> × r<sup>(t−2024)</sup></code>, where <code>r</code> is the compound growth rate from a log-linear fit (clamped to a plausible 0.98–1.02 band, since a short, volatile group record cannot support an unbounded 25-year rate). The annual figure is spread across months by the <strong>Seasonal Mean Ratio</strong> — <code>Monthly(t,m) = (A<sub>t</sub>÷12) × SMR<sub>m</sub></code>, indices normalised to sum to 12 — and every value is floored at 0 (planted area is never negative). Pre-record years (e.g. 2000–2009 vegetables) are backcast by OLS retropolation, also floored at 0. <em>Note:</em> the published Bulacan figures further re-base each municipality group to <code>provincial total × historical share</code> and reconcile across the six groups; reproducing those exact values requires uploading the provincial projection totals via the parent-area disaggregation step (2.5).</div>
+      <div class="method-step"><span class="stepnum">4.1</span><strong>Coverage reporting.</strong> Every output row carries a status flag: <em>observed</em>, <em>backcast</em> (gap-filled), <em>forecast</em> (projected), or <em>missing</em>. The platform never invents observed values.</div>
+      <div class="method-step"><span class="stepnum">4.2</span><strong>Non-negativity.</strong> Water volumes and river flows are physical quantities — every gap-filled and projected value is floored at 0 (water) or 0.001&nbsp;cms (river). No forecast is ever negative.</div>
+      <div class="method-step"><span class="stepnum">4.3</span><strong>Automated interpretation.</strong> Below every output table, the platform generates a plain-English summary covering the observed/filled split, the chosen projection model, and the projected horizon values — readable by both technical and non-technical stakeholders.</div>
     </div>
   </details>
 
   <details class="method">
-    <summary>5 · Validation and interpretation</summary>
+    <summary>5 · What this platform cannot do</summary>
     <div class="mbody">
-      <div class="method-step"><span class="stepnum">5.1</span><strong>Hold-out validation.</strong> Where multiple long-record series exist in the upload, the platform internally restricts one series to its later years, backcasts the earlier years, and compares predictions to the truly observed values. The empirical residual distribution calibrates the 90% interval per tier.</div>
-      <div class="method-step"><span class="stepnum">5.2</span><strong>Coverage reporting.</strong> Every output row carries a status flag: <em>observed</em>, <em>backcast_high/mid/low</em>, <em>forecast</em>, or <em>missing</em>. The platform never invents observed values.</div>
-      <div class="method-step"><span class="stepnum">5.3</span><strong>Automated interpretation.</strong> Below every output table, the platform generates a plain-English summary covering observed/filled split, growth rate, projected horizon values, and notable patterns — readable by both technical and non-technical stakeholders.</div>
-    </div>
-  </details>
-
-  <details class="method">
-    <summary>6 · What this platform cannot do</summary>
-    <div class="mbody">
-      <p><strong>Recover intra-year seasonality.</strong> The Philippine datasets that motivated this work broadcast annual figures across months; the platform cannot synthesise monthly variability that the source data does not contain.</p>
-      <p><strong>Validate infrastructure existence.</strong> Backcasts assume the water district or planted area existed in the years projected backwards. The platform flags rather than verifies — institutional records (LWUA, PSA, DA) remain the authority.</p>
-      <p><strong>Account for unmeasured demand.</strong> "Demand" here means recorded billed consumption or reported planted area, not biophysical water use or potential output.</p>
-      <p><strong>Use external assumptions.</strong> By design, the platform draws on no hardcoded national population or yield reference. All quantities flow strictly from your upload — preventing inconsistencies with your authoritative source.</p>
+      <p><strong>Reproduce hand-tuned reference datasets exactly.</strong> The platform applies one transparent, automated method to whatever you upload. Published datasets that involved manual, per-station data-cleaning (anomaly removal, bespoke window or model choices) may differ — by design the platform stays general and reproducible rather than fitting any single hand-curated series.</p>
+      <p><strong>Validate infrastructure existence.</strong> Back-casts assume the station existed in the years projected backwards. The platform flags rather than verifies — institutional records (LWUA, PSA, DPWH) remain the authority.</p>
+      <p><strong>Use external assumptions.</strong> By design, the platform draws on no hardcoded national population or reference constants. All quantities flow strictly from your upload — preventing inconsistencies with your authoritative source.</p>
     </div>
   </details>
 </section>
@@ -1595,13 +1527,13 @@
       <li>Hirsch, R.M., Slack, J.R., Smith, R.A. (1982). Techniques of trend analysis for monthly water quality data. <em>Water Resources Research</em> 18(1): 107–121. <span class="ref-note">— Mann-Kendall trend test.</span></li>
       <li>Hay, L.E., Wilby, R.L., Leavesley, G.H. (2000). A comparison of delta change and downscaled GCM scenarios for three mountainous basins. <em>JAWRA</em> 36(2): 387–397. <span class="ref-note">— Climate Delta / perturbation method.</span></li>
       <li>Sen, P.K. (1968). Estimates of the regression coefficient based on Kendall's tau. <em>JASA</em> 63(324): 1379–1389. <span class="ref-note">— Theil-Sen robust slope.</span></li>
-      <li>Makridakis, S., Wheelwright, S.C., Hyndman, R.J. (1998). <em>Forecasting: Methods and Applications</em>, 3rd ed. Wiley. <span class="ref-note">— Seasonal Mean Ratio decomposition.</span></li>
-      <li>Gujarati, D.N., Porter, D.C. (2009). <em>Basic Econometrics</em>, 5th ed. McGraw-Hill. <span class="ref-note">— log-linear geometric growth model.</span></li>
-      <li>Hyndman, R.J., Athanasopoulos, G. (2021). <em>Forecasting: Principles and Practice</em>, 3rd ed. OTexts. <span class="ref-note">— OLS retropolation / backcasting.</span></li>
-      <li>Philippine Statistics Authority (PSA). Census of Population and Housing, 1990–2020. Manila.</li>
-      <li>Philippine Institute for Development Studies (1999). Determination of Basic Household Water Requirements. Discussion Paper 99-02.</li>
+      <li>Billings, R.B., Jones, C.V. (2008). <em>Forecasting Urban Water Demand</em>, 2nd ed. AWWA. <span class="ref-note">— CAGR / geometric water-demand models.</span></li>
+      <li>American Water Works Association. <em>Manual M50: Water Resources Planning</em>. AWWA Press. <span class="ref-note">— demand projection practice.</span></li>
+      <li>Gujarati, D.N., Porter, D.C. (2009). <em>Basic Econometrics</em>, 5th ed. McGraw-Hill. <span class="ref-note">— linear &amp; log-linear OLS.</span></li>
+      <li>Hyndman, R.J., Athanasopoulos, G. (2021). <em>Forecasting: Principles and Practice</em>, 3rd ed. OTexts. <span class="ref-note">— model selection &amp; diagnostics.</span></li>
+      <li>Box, G.E.P., Jenkins, G.M. (1976). <em>Time Series Analysis: Forecasting and Control</em>. Holden-Day. <span class="ref-note">— polynomial (quadratic) time-series models.</span></li>
       <li>Asian Development Bank (2013). <em>Philippines: Water Supply and Sanitation Sector Assessment</em>.</li>
-      <li>Department of Agriculture, Philippines (2023). National Crop Statistics Reference Guidelines.</li>
+      <li>Department of Public Works and Highways (DPWH). STREAMS Public Portal — streamflow gauge records.</li>
     </ol>
   </div>
 </section>
@@ -1611,7 +1543,7 @@
   <div class="footer-inner">
     <div class="footer-brand">
       <h3>Fluxo</h3>
-      <p>A nationwide Philippine platform for water demand and agricultural crop gap-filling and projection, developed at the College of Climate Change and Environmental Management, Central Luzon State University.</p>
+      <p>A nationwide Philippine platform for urban water demand and river flow gap-filling and projection, developed at the College of Climate Change and Environmental Management, Central Luzon State University.</p>
       <p style="font-size: 0.84rem; color: rgba(244,251,246,0.6);">Privacy by architecture · All processing local · Open methodology</p>
     </div>
     <div class="footer-col">
